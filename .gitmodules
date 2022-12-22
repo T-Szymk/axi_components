@@ -1,0 +1,3 @@
+[submodule "ip/pulp_axi"]
+	path = ip/pulp_axi
+	url = git@github.com:T-Szymk/pulp_axi.git
