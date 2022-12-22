@@ -1,3 +1,9 @@
 [submodule "ip/pulp_axi"]
 	path = ip/pulp_axi
 	url = git@github.com:T-Szymk/pulp_axi.git
+[submodule "ip/pulp_common_cells"]
+	path = ip/pulp_common_cells
+	url = git@github.com:T-Szymk/pulp_common_cells.git
+[submodule "ip/pulp_common_verification"]
+	path = ip/pulp_common_verification
+	url = git@github.com:T-Szymk/pulp_common_verification.git

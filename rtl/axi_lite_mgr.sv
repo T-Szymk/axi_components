@@ -2,11 +2,11 @@
 -- Title      : AXI-Lite Manager
 -- Project    : T-Szymk
 ********************************************************************************
--- File       : dla_axi_lite_mgr.sv
+-- File       : axi_lite_mgr.sv
 -- Author(s)  : Tom Szymkowiak
 -- Company    : TUNI
 -- Created    : 2022-12-22s
--- Design     : dla_axi_lite_mgr
+-- Design     : axi_lite_mgr
 -- Platform   : -
 -- Standard   : SystemVerilog '17
 ********************************************************************************
@@ -17,7 +17,7 @@
 -- 2022-12-22  1.0      TZS     Created
 *******************************************************************************/
 
-module dla_axi_lite_mgr # (
+module axi_lite_mgr # (
   parameter int AXI_ADDR_WIDTH = 16,
   parameter int AXI_DATA_WIDTH = 32
 )(
@@ -202,4 +202,4 @@ module dla_axi_lite_mgr # (
     end 
   end : rd_fsm
 
-endmodule // dla_axi_lite_mgr
+endmodule // axi_lite_mgr

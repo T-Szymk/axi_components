@@ -2,11 +2,11 @@
 -- Title      : AXI-Lite Mgr Testbench 
 -- Project    : T-Szymk
 ********************************************************************************
--- File       : tb_dla_axi_lite_mgr.sv
+-- File       : tb_axi_lite_mgr.sv
 -- Author(s)  : Tom Szymkowiak
 -- Company    : TUNI
 -- Created    : 2022-12-22
--- Design     : tb_dla_axi_lite_mgr
+-- Design     : tb_axi_lite_mgr
 -- Platform   : -
 -- Standard   : SystemVerilog '17
 ********************************************************************************
@@ -20,7 +20,7 @@
 `include "../ips/headsail-common-ips/ips/axi/include/axi/assign.svh"
 //`include "../ips/headsail-common-ips/ips/axi/src/axi_test.sv"
 
-module tb_dla_axi_lite_mgr
+module tb_axi_lite_mgr
 import axi_test::*;
 #(
   parameter CLK_PERIOD_NS  = 10,
@@ -97,4 +97,4 @@ import axi_test::*;
     $finish;
   end 
 
-endmodule // tb_dla_axi_lite_mgr
+endmodule // tb_axi_lite_mgr
