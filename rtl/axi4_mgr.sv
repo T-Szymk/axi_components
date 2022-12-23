@@ -77,14 +77,12 @@ module axi4_mgr # (
   logic [               8-1:0] wr_beat_count_r;
   logic [               8-1:0] rd_beat_count_r;
   logic [  AXI_DATA_WIDTH-1:0] axi_rd_data_r;
-  logic [DATA_COUNT_WIDTH-1:0] data_count_wr_r;
-  logic [DATA_COUNT_WIDTH-1:0] data_count_rd_r;
 
   /******** ASSIGNMENTS FMS  **************************************************/
   // AW signals
   assign axi_mgr_if.aw_id     = '0;
   assign axi_mgr_if.aw_len    = axi_awlen_r;
-  assign axi_mgr_if.aw_size   = AXI_XSIZE;
+  assign axi_mgr_if.aw_size   = $clog2(AXI_XSIZE);
   assign axi_mgr_if.aw_burst  = 2'b01; // INCR
   assign axi_mgr_if.aw_lock   = '0;
   assign axi_mgr_if.aw_cache  = '0;
@@ -97,7 +95,7 @@ module axi4_mgr # (
   // AR signals
   assign axi_mgr_if.ar_id     = '0;
   assign axi_mgr_if.ar_len    = axi_arlen_r;
-  assign axi_mgr_if.ar_size   = AXI_XSIZE;
+  assign axi_mgr_if.ar_size   = $clog2(AXI_XSIZE);
   assign axi_mgr_if.ar_burst  = 2'b01; // INCR
   assign axi_mgr_if.ar_lock   = '0;
   assign axi_mgr_if.ar_cache  = '0;
@@ -130,8 +128,7 @@ module axi4_mgr # (
       axi_mgr_if.w_valid  <= '0;
       axi_mgr_if.w_last   <= '0;
       axi_mgr_if.b_ready  <= '0;
-      axi_mgr_if.w_data      <= '0;
-      data_count_rd_r     <= '0;
+      axi_mgr_if.w_data   <= '0;
       axi_aw_addr_r       <= '0;
       axi_awlen_r         <= '0;
       wr_beat_count_r     <= '0;
@@ -147,8 +144,9 @@ module axi4_mgr # (
           axi_mgr_if.w_data <= '0;
 
           if (req_wr_s == 1'b1 && wr_data_count_i != '0) begin
-            wr_beat_count_r <= (wr_data_count_i - 1);
+            wr_beat_count_r <= wr_data_count_i;
             axi_aw_addr_r   <= axi_wr_addr_i;
+            wr_c_state_r    <= AW_INIT;
           end
         end
 
@@ -160,7 +158,7 @@ module axi4_mgr # (
 
           // check if data count is a power of 2 and if so, use this as burst
           // length, else use single beat bursts
-          if ( (wr_beat_count_r & (wr_beat_count_r - 1)) == '0 ) begin
+          if ( ((wr_beat_count_r & (wr_beat_count_r - 1)) == '0) && (wr_beat_count_r != 0)) begin
             axi_awlen_r <= (wr_beat_count_r - 1);
           end else begin
             axi_awlen_r <= '0;
@@ -176,7 +174,7 @@ module axi4_mgr # (
             axi_mgr_if.aw_valid <= 1'b0;
             axi_mgr_if.w_valid  <= 1'b1;
             axi_mgr_if.w_strb   <= '1; // all byte lanes valid
-            axi_awlen_r         <= '0;
+            axi_awlen_r         <= '0;            
             // TODO: add write FIFO controls
             axi_mgr_if.w_data      <= axi_data_i;
 
@@ -186,7 +184,6 @@ module axi4_mgr # (
               wr_c_state_r      <= W_LAST;
             end else begin
               axi_mgr_if.w_last <= 1'b0;
-              wr_beat_count_r   <= wr_beat_count_r - 1;
               wr_c_state_r      <= W;
             end
 
@@ -201,8 +198,8 @@ module axi4_mgr # (
             // TODO: add write FIFO controls
             axi_mgr_if.w_data <= axi_data_i;
             
-            // if it is the last beat of the burst
-            if ( wr_beat_count_r == 1 ) begin
+            // if it is the second to last beat of the burst
+            if ( wr_beat_count_r == 2 ) begin
 
               axi_mgr_if.w_last <= 1'b1;
               wr_c_state_r      <= W_LAST;
@@ -224,9 +221,10 @@ module axi4_mgr # (
             axi_mgr_if.w_valid  <= 1'b0;
             axi_mgr_if.w_last   <= 1'b0;
             axi_mgr_if.w_strb   <= '0;
-            axi_mgr_if.w_data      <= '0;
+            axi_mgr_if.w_data   <= '0;
             axi_mgr_if.b_ready  <= 1'b1;
-            wr_c_state_r        <= B_RESP;
+            wr_beat_count_r     <= wr_beat_count_r - 1;
+            wr_c_state_r        <= B_RESP;            
 
           end
         end
@@ -270,7 +268,6 @@ module axi4_mgr # (
       axi_mgr_if.ar_valid <= '0;
       axi_mgr_if.r_ready  <= '0;
       axi_rd_data_r       <= '0;
-      data_count_rd_r     <= '0;
       axi_ar_addr_r       <= '0;
       axi_arlen_r         <= '0;
       rd_beat_count_r     <= '0;
@@ -283,9 +280,10 @@ module axi4_mgr # (
 
         R_IDLE: begin
 
-          if (req_wr_s == 1'b1 && rd_data_count_i != '0) begin
-            rd_beat_count_r <= (rd_data_count_i - 1);
+          if (req_rd_s == 1'b1 && rd_data_count_i != '0) begin
+            rd_beat_count_r <= rd_data_count_i;
             axi_ar_addr_r   <= axi_rd_addr_i;
+            rd_c_state_r    <= AR_INIT;
           end
         end
 
@@ -296,8 +294,8 @@ module axi4_mgr # (
           
           // check if data count is a power of 2 and if so, use this as burst
           // length, else use single beat bursts
-          if ( (rd_beat_count_r & (rd_beat_count_r - 1)) == '0 ) begin
-            axi_arlen_r  <= (rd_data_count_i - 1);
+          if ( ((rd_beat_count_r & (rd_beat_count_r - 1)) == '0) && (rd_beat_count_r != 0) ) begin
+            axi_arlen_r  <= (rd_beat_count_r - 1);
           end else begin
             axi_arlen_r <= '0;
           end
@@ -316,8 +314,7 @@ module axi4_mgr # (
             // if single beat transaction, got to R_LAST
             if ( axi_arlen_r == '0 ) begin
               rd_c_state_r    <= R_LAST;
-            end else begin
-              rd_beat_count_r <= rd_beat_count_r - 1;
+            end else begin              
               rd_c_state_r    <= R;
             end
 
@@ -331,9 +328,11 @@ module axi4_mgr # (
 
 
           if (axi_mgr_if.r_valid == 1'b1) begin
+
+            rd_beat_count_r <= rd_beat_count_r - 1;
             
             // if it is the last beat of the burst
-            if ( rd_beat_count_r == 1 ) begin
+            if ( rd_beat_count_r == 2 ) begin
               
               rd_c_state_r <= R_LAST;
             
@@ -353,6 +352,7 @@ module axi4_mgr # (
             axi_mgr_if.r_ready <= 1'b0;
             rd_err_r           <= axi_mgr_if.r_resp;
             axi_rd_data_r      <= axi_mgr_if.r_data; // TODO: add read FIFO controls
+            rd_beat_count_r    <= rd_beat_count_r - 1;
 
             // if not beats remaining in burst or an error value is received,
             // return to IDLE. Else, create new transaction

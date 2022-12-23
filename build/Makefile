@@ -24,11 +24,14 @@ INCLUDES   ?= +incdir+$(AXI_IP_DIR)/include
 VLOG_SUPP  ?= -suppress vlog-13262
 VLOG_FLAGS ?= -sv $(INCLUDES) -pedanticerrors -warnrbw -fsmverbose -fsm=imrsx -lint
 VOPT_FLAGS ?= "+acc=npr" -fsmverbose -fsm=imrsx
+DO_FILE    ?= $(BUILD_DIR)/axi4_sim.do
 
 TOP_DESIGN ?= tb_axi4_mgr
 
 init:
 	cd .. & git submodule update --init --recursive
+
+lib:
 	vlib axi_lib
 
 compile:
@@ -39,6 +42,9 @@ elaborate:
 
 sim_cli:
 	vsim -work axi_lib -c -onfinish stop -do "run 0us;" $(TOP_DESIGN)_opt
+
+sim:
+	vsim -work axi_lib -onfinish stop -do $(DO_FILE) $(TOP_DESIGN)_opt
 
 clean:
 	@rm -rf axi_lib

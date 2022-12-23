@@ -33,15 +33,13 @@ import axi_test::*;
 
   timeunit 1ns/1ps;
 
-  localparam int AXISize = (AXI_DATA_WIDTH/8);
+  localparam int AXISize        = (AXI_DATA_WIDTH/8);
   localparam int DataCountWidth = 8;
 
   logic       clk;
   logic       rstn;
   logic [1:0] req_s;
   logic [1:0] rsp_s;
-  logic [1:0] wr_err_s;
-  logic [1:0] rd_err_s;
 
   logic [DataCountWidth-1:0] wr_data_count_s;
   logic [DataCountWidth-1:0] rd_data_count_s;
@@ -107,8 +105,8 @@ import axi_test::*;
     .wr_data_count_i ( wr_data_count_s  ),                
     .rd_data_count_i ( rd_data_count_s  ),                
     .rsp_o           ( rsp_s            ),      
-    .wr_err_o        ( wr_err_s         ),         
-    .rd_err_o        ( rd_err_s         ),         
+    .wr_err_o        ( dut_wr_err_s     ),         
+    .rd_err_o        ( dut_rd_err_s     ),         
     .axi_data_o      ( axi_rd_data_s    ),           
     .axi_mgr_if      ( dut_if           )           
   );
@@ -117,8 +115,8 @@ import axi_test::*;
 
     rstn  = 1'b0;
     req_s = 2'b00;
-    wr_data_count_s = 1; // start with single beats
-    rd_data_count_s = 1; // start with single beats
+    wr_data_count_s = 7; // start with single beats
+    rd_data_count_s = 7; // start with single beats
 
     #(2*CLK_PERIOD_NS) rstn = 1'b1;
     tb_axi4_sub.reset();
