@@ -89,8 +89,8 @@ module axi4_mgr # (
   logic [               8-1:0] axi_arlen_r;
   logic [               2-1:0] wr_err_r, wr_err_s;
   logic [               2-1:0] rd_err_r, rd_err_s;
-  logic [DATA_COUNT_WIDTH-1:0] wr_beat_count_r;
-  logic [DATA_COUNT_WIDTH-1:0] rd_beat_count_r;
+  logic [               8-1:0] wr_beat_count_r;
+  logic [               8-1:0] rd_beat_count_r;
   logic [  AXI_DATA_WIDTH-1:0] axi_rd_data_r;
 
   /******** ASSIGNMENTS FMS  **************************************************/
@@ -169,13 +169,10 @@ module axi4_mgr # (
           axi_mgr_if.aw_addr  <= axi_aw_addr_r;
           axi_mgr_if.aw_valid <= 1'b1;
           wr_c_state_r        <= AW;
-          
-          // set length to max if beat count is larger than AXI4 max of 256
-          if ( wr_beat_count_r > 'd256 ) begin
-            axi_awlen_r <= 8'hFF;
+
           // check if data count is a power of 2 and if so, use this as burst
           // length, else use single beat bursts
-          end else if ( ((wr_beat_count_r & (wr_beat_count_r - 1)) == '0) && (wr_beat_count_r != 0)) begin
+          if ( ((wr_beat_count_r & (wr_beat_count_r - 1)) == '0) && (wr_beat_count_r != 0)) begin
             axi_awlen_r <= (wr_beat_count_r - 1);
           end else begin
             axi_awlen_r <= '0;
@@ -306,13 +303,10 @@ module axi4_mgr # (
           axi_mgr_if.ar_valid <= 1'b1;
           rd_c_state_r        <= AR;
           
-          // set length to max if beat count is larger than AXI4 max of 256
-          if ( rd_beat_count_r > 'd256 ) begin
-            axi_arlen_r <= 8'hFF;
           // check if data count is a power of 2 and if so, use this as burst
           // length, else use single beat bursts
-          end else if ( ((rd_beat_count_r & (rd_beat_count_r - 1)) == '0) && (rd_beat_count_r != 0) ) begin
-            axi_arlen_r  <= (rd_beat_count_r[8-1:0]) - 1;
+          if ( ((rd_beat_count_r & (rd_beat_count_r - 1)) == '0) && (rd_beat_count_r != 0) ) begin
+            axi_arlen_r  <= (rd_beat_count_r - 1);
           end else begin
             axi_arlen_r <= '0;
           end
