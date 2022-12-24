@@ -158,7 +158,7 @@ module axi4_mgr # (
           axi_mgr_if.w_data <= '0;
 
           if (req_wr_s == 1'b1 && wr_data_count_i != '0) begin
-            wr_beat_count_r <= (wr_data_count_i > 'd256) ? 'd256 : wr_data_count_i;
+            wr_beat_count_r <= wr_data_count_i;
             axi_aw_addr_r   <= axi_wr_addr_i;
             wr_c_state_r    <= AW_INIT;
           end
@@ -169,11 +169,14 @@ module axi4_mgr # (
           axi_mgr_if.aw_addr  <= axi_aw_addr_r;
           axi_mgr_if.aw_valid <= 1'b1;
           wr_c_state_r        <= AW;
-
+          
+          // set length to max if beat count is larger than AXI4 max of 256
+          if ( wr_beat_count_r > 'd256 ) begin
+            axi_awlen_r <= 8'hFF;
           // check if data count is a power of 2 and if so, use this as burst
           // length, else use single beat bursts
-          if ( ((wr_beat_count_r & (wr_beat_count_r - 1)) == '0) && (wr_beat_count_r != 0)) begin
-            axi_awlen_r <= (wr_beat_count_r[8-1:0]) - 1;
+          end else if ( ((wr_beat_count_r & (wr_beat_count_r - 1)) == '0) && (wr_beat_count_r != 0)) begin
+            axi_awlen_r <= (wr_beat_count_r - 1);
           end else begin
             axi_awlen_r <= '0;
           end
@@ -292,7 +295,7 @@ module axi4_mgr # (
         R_IDLE: begin
 
           if (req_rd_s == 1'b1 && rd_data_count_i != '0) begin
-            rd_beat_count_r <= (rd_data_count_i > 'd256) ? 'd256 : rd_data_count_i;
+            rd_beat_count_r <= rd_data_count_i;
             axi_ar_addr_r   <= axi_rd_addr_i;
             rd_c_state_r    <= AR_INIT;
           end
@@ -303,9 +306,12 @@ module axi4_mgr # (
           axi_mgr_if.ar_valid <= 1'b1;
           rd_c_state_r        <= AR;
           
+          // set length to max if beat count is larger than AXI4 max of 256
+          if ( rd_beat_count_r > 'd256 ) begin
+            axi_arlen_r <= 8'hFF;
           // check if data count is a power of 2 and if so, use this as burst
           // length, else use single beat bursts
-          if ( ((rd_beat_count_r & (rd_beat_count_r - 1)) == '0) && (rd_beat_count_r != 0) ) begin
+          end else if ( ((rd_beat_count_r & (rd_beat_count_r - 1)) == '0) && (rd_beat_count_r != 0) ) begin
             axi_arlen_r  <= (rd_beat_count_r[8-1:0]) - 1;
           end else begin
             axi_arlen_r <= '0;
