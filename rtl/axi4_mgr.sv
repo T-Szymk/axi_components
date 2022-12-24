@@ -11,10 +11,25 @@
 -- Standard   : SystemVerilog '17
 ********************************************************************************
 -- Description: Generic non-pipelined AXI4 manager.
---              Does not currently support burst transactions.
---              No reponse error handling is implemented.
+--              AOnly supports single and INCR burst transactions.
+--              Basic error reporting.
 --              No protection against reading across 4kB boundaries is provided.
 --              Does not support narrow bursts.
+--              Designed to read from and write to separate FIFOs.
+-- Guidance:    Set address and data_count and then set the corresponding req 
+--              bit. For a write, the wr_valid/rdy will be used to read in new 
+--              data to be written in each beat. For a read, the rd_valid/rdy 
+--              signals to write out the read results. Once the data_count
+--              number of transactions have completed, the corresponding rsp bit
+--              will be set.
+--              If an error response is encountered, the rd/wr_err bits will be 
+--              set to indicate the latest not OK error value. This value will 
+--              be cleared when initiating a new set of transactions (setting 
+--              req).
+--              Only Incrementing bursts are supported right now, so for each 
+--              transaction/beat, the address will be incremented by 4, starting
+--              from the address value which is present in the first cycle of 
+--              req being set. 
 ********************************************************************************
 -- Revisions:
 -- Date        Version  Author  Description
@@ -66,14 +81,14 @@ module axi4_mgr # (
   rd_state_t rd_c_state_r;
 
   logic rsp_wr_s, rsp_rd_s;
-  logic req_wr_s, req_rd_s;
+  logic req_wr_s, req_rd_s, req_wr_r, req_rd_r;
   
   logic [  AXI_ADDR_WIDTH-1:0] axi_aw_addr_r;
   logic [  AXI_ADDR_WIDTH-1:0] axi_ar_addr_r;
   logic [               8-1:0] axi_awlen_r;
   logic [               8-1:0] axi_arlen_r;
-  logic [               2-1:0] wr_err_r;
-  logic [               2-1:0] rd_err_r;
+  logic [               2-1:0] wr_err_r, wr_err_s;
+  logic [               2-1:0] rd_err_r, rd_err_s;
   logic [               8-1:0] wr_beat_count_r;
   logic [               8-1:0] rd_beat_count_r;
   logic [  AXI_DATA_WIDTH-1:0] axi_rd_data_r;
@@ -132,7 +147,6 @@ module axi4_mgr # (
       axi_aw_addr_r       <= '0;
       axi_awlen_r         <= '0;
       wr_beat_count_r     <= '0;
-      wr_err_r            <= '0;
       wr_c_state_r        <= W_IDLE;
 
     end else begin
@@ -234,16 +248,14 @@ module axi4_mgr # (
           if (axi_mgr_if.b_valid == 1'b1) begin
 
             axi_mgr_if.b_ready <= 1'b0;
-            // if not beats remaining in burst or an error value is received,
+            // if not beats remaining in burst,
             // return to IDLE. Else, create new transaction
-            if ( wr_beat_count_r == '0 || axi_mgr_if.b_resp != '0 ) begin
+            if ( wr_beat_count_r == '0 ) begin
               wr_c_state_r <= W_IDLE;
             end else begin
               wr_c_state_r <= AW_INIT;
               axi_aw_addr_r <= axi_aw_addr_r + WORD_SIZE_BYTES; // increment address 
             end
-
-            wr_err_r <= axi_mgr_if.b_resp;
 
           end
         end
@@ -271,7 +283,6 @@ module axi4_mgr # (
       axi_ar_addr_r       <= '0;
       axi_arlen_r         <= '0;
       rd_beat_count_r     <= '0;
-      rd_err_r            <= '0;
       rd_c_state_r        <= R_IDLE;
 
     end else begin
@@ -323,15 +334,14 @@ module axi4_mgr # (
 
         R: begin
 
-          // updates output with new data wach beat
+          // updates output with new data each beat
           axi_rd_data_r <= axi_mgr_if.r_data; // TODO: add read FIFO controls
-
 
           if (axi_mgr_if.r_valid == 1'b1) begin
 
             rd_beat_count_r <= rd_beat_count_r - 1;
             
-            // if it is the last beat of the burst
+            // if it is the second to last beat of the burst
             if ( rd_beat_count_r == 2 ) begin
               
               rd_c_state_r <= R_LAST;
@@ -350,13 +360,12 @@ module axi4_mgr # (
           if (axi_mgr_if.r_valid == 1'b1) begin
 
             axi_mgr_if.r_ready <= 1'b0;
-            rd_err_r           <= axi_mgr_if.r_resp;
             axi_rd_data_r      <= axi_mgr_if.r_data; // TODO: add read FIFO controls
             rd_beat_count_r    <= rd_beat_count_r - 1;
 
-            // if not beats remaining in burst or an error value is received,
+            // if not beats remaining in burst,
             // return to IDLE. Else, create new transaction
-            if ( rd_beat_count_r == '0 || axi_mgr_if.r_resp != '0) begin
+            if ( rd_beat_count_r == '0 ) begin
               rd_c_state_r  <= R_IDLE;
 
             end else begin
@@ -378,5 +387,28 @@ module axi4_mgr # (
 
     end
   end : rd_fsm
+
+  /******** ERROR MGMT ********************************************************/
+  /* Set error to 0 when request is detected. Latch last detected error */
+  always_comb begin 
+    wr_err_s = ((wr_c_state_r == W_IDLE) && (req_wr_s == 1'b1)) ? '0 :
+               (axi_mgr_if.b_resp != '0) ? axi_mgr_if.b_resp : wr_err_r;
+    rd_err_s = ((rd_c_state_r == R_IDLE) && (req_rd_s == 1'b1)) ? '0 :
+               (axi_mgr_if.r_resp != '0) ? axi_mgr_if.r_resp : rd_err_r;
+  end
+
+  always_ff @(posedge clk_i or negedge rstn_i) begin 
+    if (~rstn_i) begin 
+      req_wr_r <= '0;
+      req_rd_r <= '0;
+      wr_err_r <= '0;
+      rd_err_r <= '0;
+    end else begin 
+      req_wr_r <= req_wr_s;
+      req_rd_r <= req_rd_s;
+      wr_err_r <= wr_err_s;
+      rd_err_r <= rd_err_s;
+    end
+  end
 
 endmodule // axi4_mgr
