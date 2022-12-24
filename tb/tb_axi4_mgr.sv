@@ -113,6 +113,9 @@ import axi_test::*;
 
   initial begin
 
+    $monitor("Write Error change detected. New value: %d", dut_wr_err_s);
+    $monitor("Read Error change detected. New value: %d", dut_rd_err_s);
+
     rstn  = 1'b0;
     req_s = 2'b00;
     wr_data_count_s = 7; // start with single beats
