@@ -34,7 +34,7 @@ import axi_test::*;
   timeunit 1ns/1ps;
 
   localparam int AXISize        = (AXI_DATA_WIDTH/8);
-  localparam int DataCountWidth = 8;
+  localparam int DataCountWidth = 9; // 256 max
 
   logic       clk;
   logic       rstn;
@@ -118,8 +118,8 @@ import axi_test::*;
 
     rstn  = 1'b0;
     req_s = 2'b00;
-    wr_data_count_s = 7; // start with single beats
-    rd_data_count_s = 7; // start with single beats
+    wr_data_count_s = 256; // start with single beats
+    rd_data_count_s = 255; // start with single beats
 
     #(2*CLK_PERIOD_NS) rstn = 1'b1;
     tb_axi4_sub.reset();
