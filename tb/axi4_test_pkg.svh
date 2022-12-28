@@ -151,23 +151,25 @@ package axi4_test_pkg;
 
     function automatic void reset;
 
-      this.axi4.ar_ready  <= '0;
+      $display("%t0ns: Resetting AXI4_sub", $time);
 
-      this.axi4.r_id      <= '0;
-      this.axi4.r_data    <= '0;
-      this.axi4.r_resp    <= '0;
-      this.axi4.r_last    <= '0;
-      this.axi4.r_user    <= '0;
-      this.axi4.r_valid   <= '0;
+      this.axi4.ar_ready  = '0;
 
-      this.axi4.aw_ready  <= '0;
+      this.axi4.r_id      = '0;
+      this.axi4.r_data    = '0;
+      this.axi4.r_resp    = '0;
+      this.axi4.r_last    = '0;
+      this.axi4.r_user    = '0;
+      this.axi4.r_valid   = '0;
 
-      this.axi4.w_ready   <= '0;
+      this.axi4.aw_ready  = '0;
 
-      this.axi4.b_id      <= '0;
-      this.axi4.b_resp    <= '0;
-      this.axi4.b_user    <= '0;
-      this.axi4.b_valid   <= '0;
+      this.axi4.w_ready   = '0;
+
+      this.axi4.b_id      = '0;
+      this.axi4.b_resp    = '0;
+      this.axi4.b_user    = '0;
+      this.axi4.b_valid   = '0;
 
     endfunction // reset
 
@@ -237,7 +239,8 @@ package axi4_test_pkg;
         this.axi4.r_resp  = #(ASSIGN_DELAY) '0;     // OKAY
         this.axi4.r_user  = #(ASSIGN_DELAY) ar_signals.ar_user;
         
-        this.axi4.r_last  = #(ASSIGN_DELAY) (beat_counter == 1) ? 1'b1 : 1'b0;
+        if ( beat_counter == 1 )
+          this.axi4.r_last = #(ASSIGN_DELAY) 1'b1;
         
         #(EXEC_DELAY);
         // wait for handshake
@@ -252,7 +255,8 @@ package axi4_test_pkg;
       
       end
     
-      this.axi4.ar_valid <= #(ASSIGN_DELAY) 1'b0;
+      this.axi4.ar_valid = #(ASSIGN_DELAY) 1'b0;
+      this.axi4.r_last   = #(ASSIGN_DELAY) 1'b0;
 
     endtask // transmit_r
 
@@ -264,7 +268,7 @@ package axi4_test_pkg;
         .USER_WIDTH ( USER_WIDTH )  
       ) aw_signals = new();
 
-      this.axi4.ar_ready = #(ASSIGN_DELAY) 1'b1;
+      this.axi4.aw_ready = #(ASSIGN_DELAY) 1'b1;
       
       #(EXEC_DELAY);
       // wait for handshake
@@ -324,16 +328,15 @@ package axi4_test_pkg;
       while (beat_counter > 0) begin
 
         this.axi4.w_ready = #(ASSIGN_DELAY) 1'b1;
-        this.axi4.w_strb  = #(ASSIGN_DELAY) '1; // full beats only
-        this.axi4.w_data  = #(ASSIGN_DELAY) {16'hABCD, beat_counter[16-1:0]}; // Use beat count
-        this.axi4.w_user  = #(ASSIGN_DELAY) aw_signals.aw_user;
+        // Todo: Add management of write data
+        w_signals.w_data  = #(ASSIGN_DELAY) this.axi4.w_data;  
         
         w_signals.w_last  = #(ASSIGN_DELAY) this.axi4.w_last;
         // Todo: Add check to ensure last is only high on final beat
         
         #(EXEC_DELAY);
         // wait for handshake
-        while (this.axi4.r_ready != 1'b1) begin          
+        while (this.axi4.w_valid != 1'b1) begin          
           @(posedge this.axi4.clk);
           #(EXEC_DELAY);
         end
@@ -350,7 +353,7 @@ package axi4_test_pkg;
 
       this.b_queue.push_back(b_signals);
     
-      this.axi4.ar_valid <= #(ASSIGN_DELAY) 1'b0;
+      this.axi4.w_ready = #(ASSIGN_DELAY) 1'b0;
 
     endtask // receive_w
 
@@ -378,23 +381,36 @@ package axi4_test_pkg;
       end
 
       @(posedge this.axi4.clk);
-      this.axi4.b_valid <= #(ASSIGN_DELAY) 1'b0;
+      this.axi4.b_valid = #(ASSIGN_DELAY) 1'b0;
 
     endtask // transmit_b
 
     task automatic run;
-    fork 
-      forever
-        this.receive_ar();
-      forever
-        this.transmit_r();
-      forever
-        this.receive_aw();
-      forever
-        this.receive_w();
-      forever
-        this.transmit_b();
-    join
+
+      $display("%t0ns: Running AXI4_sub", $time);
+
+      fork
+        begin 
+          forever
+            this.receive_ar();
+        end
+        begin
+          forever
+            this.transmit_r();
+        end
+        begin
+          forever
+            this.receive_aw();
+        end
+        begin
+          forever
+            this.receive_w();
+        end
+        begin
+          forever
+            this.transmit_b();
+        end
+      join
     endtask
 
   endclass // SubAXI4

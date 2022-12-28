@@ -1,8 +1,9 @@
 onerror {resume}
 quietly WaveActivateNextPane {} 0
-add wave -noupdate -expand -group top    sim:/tb_axi4_mgr/*
-add wave -noupdate -expand -group dut    sim:/tb_axi4_mgr/i_dut/*
-add wave -noupdate -expand -group dut_if sim:/tb_axi4_mgr/dut_if/*
+add wave -noupdate -group top         sim:/tb_axi4_mgr/*
+add wave -noupdate -group dut         sim:/tb_axi4_mgr/i_dut/*
+add wave -noupdate -group dut_if      sim:/tb_axi4_mgr/dut_if/*
+add wave -noupdate -group axi_s_tb_if sim:/tb_axi4_mgr/axi_s_tb_if/*
 
 quietly wave cursor active 1
 configure wave -namecolwidth 189
@@ -22,6 +23,6 @@ update
 
 set RunLength 1us
 
-run 500us
+run -all
 
 wave zoom full

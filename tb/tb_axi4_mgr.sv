@@ -18,12 +18,13 @@
 *******************************************************************************/
 
 module tb_axi4_mgr #(
-  parameter time     CLK_PERIOD_NS   = 10,
-  parameter unsigned AXI_ADDR_WIDTH  = 32,
-  parameter unsigned AXI_DATA_WIDTH  = 64,
-  parameter unsigned AXI_ID_WIDTH    =  9,
-  parameter unsigned AXI_USER_WIDTH  =  5,
-  parameter unsigned WORD_SIZE_BYTES =  4
+  parameter time     CLK_PERIOD_NS   =   10,
+  parameter unsigned AXI_ADDR_WIDTH  =   32,
+  parameter unsigned AXI_DATA_WIDTH  =   64,
+  parameter unsigned AXI_ID_WIDTH    =    9,
+  parameter unsigned AXI_USER_WIDTH  =    5,
+  parameter unsigned WORD_SIZE_BYTES =    4,
+  parameter unsigned SIM_TIME_NS     = 1000
 );
 
   timeunit 1ns/1ps;
@@ -69,6 +70,29 @@ module tb_axi4_mgr #(
   ) tb_axi4_sub = new(axi_s_tb_if);
 
   /* AXI Interface Assignments */
+
+  assign axi_s_tb_if.ar_id     = dut_if.ar_id;
+  assign axi_s_tb_if.ar_addr   = dut_if.ar_addr;
+  assign axi_s_tb_if.ar_len    = dut_if.ar_len;
+  assign axi_s_tb_if.ar_size   = dut_if.ar_size;
+  assign axi_s_tb_if.ar_burst  = dut_if.ar_burst;
+  assign axi_s_tb_if.ar_lock   = dut_if.ar_lock;
+  assign axi_s_tb_if.ar_cache  = dut_if.ar_cache;
+  assign axi_s_tb_if.ar_prot   = dut_if.ar_prot;
+  assign axi_s_tb_if.ar_qos    = dut_if.ar_qos;
+  assign axi_s_tb_if.ar_region = dut_if.ar_region;
+  assign axi_s_tb_if.ar_user   = dut_if.ar_user;
+  assign axi_s_tb_if.ar_valid  = dut_if.ar_valid;
+  assign dut_if.ar_ready       = axi_s_tb_if.ar_ready;
+  
+  assign dut_if.r_id         = axi_s_tb_if.r_id;      
+  assign dut_if.r_data       = axi_s_tb_if.r_data;        
+  assign dut_if.r_resp       = axi_s_tb_if.r_resp;        
+  assign dut_if.r_last       = axi_s_tb_if.r_last;        
+  assign dut_if.r_user       = axi_s_tb_if.r_user;        
+  assign dut_if.r_valid      = axi_s_tb_if.r_valid;        
+  assign axi_s_tb_if.r_ready = dut_if.r_ready;
+
   assign axi_s_tb_if.aw_id     = dut_if.aw_id;
   assign axi_s_tb_if.aw_addr   = dut_if.aw_addr;
   assign axi_s_tb_if.aw_len    = dut_if.aw_len;
@@ -97,27 +121,6 @@ module tb_axi4_mgr #(
   assign dut_if.b_valid      = axi_s_tb_if.b_valid;        
   assign axi_s_tb_if.b_ready = dut_if.b_ready;
 
-  assign axi_s_tb_if.ar_id     = dut_if.ar_id;
-  assign axi_s_tb_if.ar_addr   = dut_if.ar_addr;
-  assign axi_s_tb_if.ar_len    = dut_if.ar_len;
-  assign axi_s_tb_if.ar_size   = dut_if.ar_size;
-  assign axi_s_tb_if.ar_burst  = dut_if.ar_burst;
-  assign axi_s_tb_if.ar_lock   = dut_if.ar_lock;
-  assign axi_s_tb_if.ar_cache  = dut_if.ar_cache;
-  assign axi_s_tb_if.ar_prot   = dut_if.ar_prot;
-  assign axi_s_tb_if.ar_qos    = dut_if.ar_qos;
-  assign axi_s_tb_if.ar_region = dut_if.ar_region;
-  assign axi_s_tb_if.ar_user   = dut_if.ar_user;
-  assign axi_s_tb_if.ar_valid  = dut_if.ar_valid;
-  assign dut_if.ar_ready       = axi_s_tb_if.ar_ready;
-  
-  assign dut_if.r_id         = axi_s_tb_if.r_id;      
-  assign dut_if.r_data       = axi_s_tb_if.r_data;        
-  assign dut_if.r_resp       = axi_s_tb_if.r_resp;        
-  assign dut_if.r_last       = axi_s_tb_if.r_last;        
-  assign dut_if.r_user       = axi_s_tb_if.r_user;        
-  assign dut_if.r_valid      = axi_s_tb_if.r_valid;        
-  assign axi_s_tb_if.r_ready = dut_if.r_ready;
   /* AXI Interface Assignments */
 
 
@@ -164,12 +167,13 @@ module tb_axi4_mgr #(
     $monitor("Read Error change detected. New value: %d", dut_rd_err_s);
 
     rstn  = 1'b0;
+    tb_axi4_sub.reset();
+    
     req_s = 2'b00;
-    wr_data_count_s = 256; // start with single beats
-    rd_data_count_s = 255; // start with single beats
+    wr_data_count_s = 10; // start with single beats
+    rd_data_count_s = 10; // start with single beats
 
     #(2*CLK_PERIOD_NS) rstn = 1'b1;
-    tb_axi4_sub.reset();
     #(2*CLK_PERIOD_NS);
 
     req_s = 2'b11; // start read and write trans
@@ -177,6 +181,11 @@ module tb_axi4_mgr #(
     // infinite loop
     forever @(posedge clk);
 
+  end
+
+  initial begin 
+    #(SIM_TIME_NS);
+    $display("%t0: Simulation Complete.", $time);
     $finish;
   end
 
