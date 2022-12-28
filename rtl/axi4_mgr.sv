@@ -5,7 +5,7 @@
 -- File       : axi4_mgr.sv
 -- Author(s)  : Tom Szymkowiak
 -- Company    : TUNI
--- Created    : 2022-12-23
+-- Created    : 2022-12-28
 -- Design     : axi4_mgr
 -- Platform   : -
 -- Standard   : SystemVerilog '17
@@ -33,7 +33,7 @@
 ********************************************************************************
 -- Revisions:
 -- Date        Version  Author  Description
--- 2022-12-23  1.0      TZS     Created
+-- 2022-12-28  1.0      TZS     Created
 *******************************************************************************/
 
 module axi4_mgr # (
@@ -55,7 +55,7 @@ module axi4_mgr # (
   output logic [               2-1:0] wr_err_o, // bresp
   output logic [               2-1:0] rd_err_o, // rresp
   output logic [  AXI_DATA_WIDTH-1:0] axi_data_o,
-  AXI_BUS.Master                      axi_mgr_if
+  axi4_bus_if.Manager                 axi_mgr_if
 );
 
   /******** SIGNALS/CONSTANTS/TYPES *******************************************/
@@ -91,6 +91,8 @@ module axi4_mgr # (
   logic [               2-1:0] rd_err_r, rd_err_s;
   logic [               8-1:0] wr_beat_count_r;
   logic [               8-1:0] rd_beat_count_r;
+  logic [DATA_COUNT_WIDTH-1:0] wr_beats_remain_r;
+  logic [DATA_COUNT_WIDTH-1:0] rd_beats_remain_r;
   logic [  AXI_DATA_WIDTH-1:0] axi_rd_data_r;
 
   /******** ASSIGNMENTS FMS  **************************************************/
@@ -147,6 +149,7 @@ module axi4_mgr # (
       axi_aw_addr_r       <= '0;
       axi_awlen_r         <= '0;
       wr_beat_count_r     <= '0;
+      wr_beats_remain_r   <= '0;
       wr_c_state_r        <= W_IDLE;
 
     end else begin
@@ -158,9 +161,31 @@ module axi4_mgr # (
           axi_mgr_if.w_data <= '0;
 
           if (req_wr_s == 1'b1 && wr_data_count_i != '0) begin
-            wr_beat_count_r <= wr_data_count_i;
+
             axi_aw_addr_r   <= axi_wr_addr_i;
             wr_c_state_r    <= AW_INIT;
+
+            if (wr_data_count_i > 256) begin              
+              wr_beats_remain_r <= wr_data_count_i - 256;
+              wr_beat_count_r   <= 256;
+            end else begin 
+              wr_beats_remain_r <= '0;
+              wr_beat_count_r   <= wr_data_count_i;
+            end
+          
+          // current burst complete, but data remaining
+          end else if ( wr_beats_remain_r != '0 ) begin 
+
+            wr_c_state_r <= AW_INIT;
+
+            if ( wr_beats_remain_r > 256 ) begin 
+              wr_beats_remain_r <= wr_beats_remain_r - 256;
+              wr_beat_count_r   <= 256;
+            end else begin 
+              wr_beat_count_r   <= wr_beats_remain_r;
+              wr_beats_remain_r <= '0;
+            end
+
           end
         end
 
@@ -177,7 +202,6 @@ module axi4_mgr # (
           end else begin
             axi_awlen_r <= '0;
           end
-
         end
 
         AW: begin
@@ -200,7 +224,6 @@ module axi4_mgr # (
               axi_mgr_if.w_last <= 1'b0;
               wr_c_state_r      <= W;
             end
-
           end
         end
 
@@ -224,7 +247,6 @@ module axi4_mgr # (
               wr_c_state_r      <= W;
 
             end
-
           end
         end
 
@@ -251,12 +273,15 @@ module axi4_mgr # (
             // if not beats remaining in burst,
             // return to IDLE. Else, create new transaction
             if ( wr_beat_count_r == '0 ) begin
-              wr_c_state_r <= W_IDLE;
-            end else begin
-              wr_c_state_r <= AW_INIT;
-              axi_aw_addr_r <= axi_aw_addr_r + WORD_SIZE_BYTES; // increment address 
-            end
 
+              wr_c_state_r <= W_IDLE;
+
+            end else begin
+
+              axi_aw_addr_r <= axi_aw_addr_r + WORD_SIZE_BYTES; // increment address 
+              wr_c_state_r  <= AW_INIT;
+            
+            end
           end
         end
 
@@ -283,6 +308,7 @@ module axi4_mgr # (
       axi_ar_addr_r       <= '0;
       axi_arlen_r         <= '0;
       rd_beat_count_r     <= '0;
+      rd_beats_remain_r   <= '0;
       rd_c_state_r        <= R_IDLE;
 
     end else begin
@@ -292,9 +318,29 @@ module axi4_mgr # (
         R_IDLE: begin
 
           if (req_rd_s == 1'b1 && rd_data_count_i != '0) begin
-            rd_beat_count_r <= rd_data_count_i;
+
             axi_ar_addr_r   <= axi_rd_addr_i;
             rd_c_state_r    <= AR_INIT;
+            
+            if (wr_data_count_i > 256) begin              
+              rd_beats_remain_r <= rd_data_count_i - 256;
+              rd_beat_count_r   <= 256;
+            end else begin 
+              rd_beats_remain_r <= '0;
+              rd_beat_count_r   <= rd_data_count_i;
+            end
+            
+          end else if ( wr_beats_remain_r != '0 ) begin 
+
+            rd_c_state_r <= AR_INIT;
+
+            if ( rd_beats_remain_r > 256 ) begin 
+              rd_beats_remain_r <= rd_beats_remain_r - 256;
+              rd_beat_count_r   <= 256;
+            end else begin 
+              rd_beat_count_r   <= rd_beats_remain_r;
+              rd_beats_remain_r <= '0;
+            end
           end
         end
 
@@ -328,7 +374,6 @@ module axi4_mgr # (
             end else begin              
               rd_c_state_r    <= R;
             end
-
           end
         end
 
@@ -351,7 +396,6 @@ module axi4_mgr # (
               rd_c_state_r <= R;
             
             end
-
           end
         end
 
@@ -366,15 +410,16 @@ module axi4_mgr # (
             // if not beats remaining in burst,
             // return to IDLE. Else, create new transaction
             if ( rd_beat_count_r == '0 ) begin
+
               rd_c_state_r  <= R_IDLE;
 
             end else begin
-              rd_c_state_r  <= AR_INIT; 
-              axi_ar_addr_r <= axi_ar_addr_r + WORD_SIZE_BYTES; // increment address 
-            end            
-            
-          end
 
+              axi_ar_addr_r <= axi_ar_addr_r + WORD_SIZE_BYTES; // increment address 
+              rd_c_state_r  <= AR_INIT; 
+            
+            end            
+          end
         end
 
         default: begin

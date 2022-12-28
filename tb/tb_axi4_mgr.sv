@@ -5,7 +5,7 @@
 -- File       : tb_axi4_mgr.sv
 -- Author(s)  : Tom Szymkowiak
 -- Company    : TUNI
--- Created    : 2022-12-23
+-- Created    : 2022-12-28
 -- Design     : tb_axi4_mgr
 -- Platform   : -
 -- Standard   : SystemVerilog '17
@@ -14,15 +14,10 @@
 ********************************************************************************
 -- Revisions:
 -- Date        Version  Author  Description
--- 2022-12-23  1.0      TZS     Created
+-- 2022-12-28  1.0      TZS     Created
 *******************************************************************************/
 
-`include "../ip/pulp_axi/include/axi/assign.svh"
-`include "../ip/pulp_axi/include/axi/typedef.svh"
-
-module tb_axi4_mgr
-import axi_test::*;
-#(
+module tb_axi4_mgr #(
   parameter time     CLK_PERIOD_NS   = 10,
   parameter unsigned AXI_ADDR_WIDTH  = 32,
   parameter unsigned AXI_DATA_WIDTH  = 64,
@@ -50,29 +45,81 @@ import axi_test::*;
   logic [AXI_ADDR_WIDTH-1:0] axi_wr_addr_s;
   logic [AXI_ADDR_WIDTH-1:0] axi_rd_addr_s;
 
-  AXI_BUS_DV #(
-    .AXI_ADDR_WIDTH ( AXI_ADDR_WIDTH ),
-    .AXI_DATA_WIDTH ( AXI_DATA_WIDTH ),
-    .AXI_ID_WIDTH   ( AXI_ID_WIDTH   ),
-    .AXI_USER_WIDTH ( AXI_USER_WIDTH )
+  axi4_bus_test_if #(
+    .ADDR_WIDTH ( AXI_ADDR_WIDTH ),
+    .DATA_WIDTH ( AXI_DATA_WIDTH ),
+    .ID_WIDTH   ( AXI_ID_WIDTH   ),
+    .USER_WIDTH ( AXI_USER_WIDTH )
   ) axi_s_tb_if ( clk );
 
-  AXI_BUS #(
-    .AXI_ADDR_WIDTH ( AXI_ADDR_WIDTH ),
-    .AXI_DATA_WIDTH ( AXI_DATA_WIDTH ),
-    .AXI_ID_WIDTH   ( AXI_ID_WIDTH   ),
-    .AXI_USER_WIDTH ( AXI_USER_WIDTH )
+  axi4_bus_if #(
+    .ADDR_WIDTH ( AXI_ADDR_WIDTH ),
+    .DATA_WIDTH ( AXI_DATA_WIDTH ),
+    .ID_WIDTH   ( AXI_ID_WIDTH   ),
+    .USER_WIDTH ( AXI_USER_WIDTH )
   ) dut_if ();
 
-  axi_rand_slave #(
-    .AW ( AXI_ADDR_WIDTH ),
-    .DW ( AXI_DATA_WIDTH ),
-    .IW ( AXI_ID_WIDTH   ),
-    .UW ( AXI_USER_WIDTH ),
-    .TT ( 500ps          )
+  axi4_test_pkg::SubAXI4 #(
+    .ID_WIDTH     ( AXI_ID_WIDTH   ),     
+    .ADDR_WIDTH   ( AXI_ADDR_WIDTH ),       
+    .DATA_WIDTH   ( AXI_DATA_WIDTH ),       
+    .USER_WIDTH   ( AXI_USER_WIDTH ),       
+    .ASSIGN_DELAY ( 0ps            ),         
+    .EXEC_DELAY   ( 500ps          ) 
   ) tb_axi4_sub = new(axi_s_tb_if);
 
-  `AXI_ASSIGN( axi_s_tb_if, dut_if )
+  /* AXI Interface Assignments */
+  assign axi_s_tb_if.aw_id     = dut_if.aw_id;
+  assign axi_s_tb_if.aw_addr   = dut_if.aw_addr;
+  assign axi_s_tb_if.aw_len    = dut_if.aw_len;
+  assign axi_s_tb_if.aw_size   = dut_if.aw_size;
+  assign axi_s_tb_if.aw_burst  = dut_if.aw_burst;
+  assign axi_s_tb_if.aw_lock   = dut_if.aw_lock;
+  assign axi_s_tb_if.aw_cache  = dut_if.aw_cache;
+  assign axi_s_tb_if.aw_prot   = dut_if.aw_prot;
+  assign axi_s_tb_if.aw_qos    = dut_if.aw_qos;
+  assign axi_s_tb_if.aw_region = dut_if.aw_region;
+  assign axi_s_tb_if.aw_atop   = dut_if.aw_atop;
+  assign axi_s_tb_if.aw_user   = dut_if.aw_user;
+  assign axi_s_tb_if.aw_valid  = dut_if.aw_valid;
+  assign dut_if.aw_ready       = axi_s_tb_if.aw_ready;
+
+  assign axi_s_tb_if.w_data  = dut_if.w_data;
+  assign axi_s_tb_if.w_strb  = dut_if.w_strb;
+  assign axi_s_tb_if.w_last  = dut_if.w_last;
+  assign axi_s_tb_if.w_user  = dut_if.w_user;
+  assign axi_s_tb_if.w_valid = dut_if.w_valid;
+  assign dut_if.w_ready      = axi_s_tb_if.w_ready;
+
+  assign dut_if.b_id         = axi_s_tb_if.b_id;    
+  assign dut_if.b_resp       = axi_s_tb_if.b_resp;      
+  assign dut_if.b_user       = axi_s_tb_if.b_user;      
+  assign dut_if.b_valid      = axi_s_tb_if.b_valid;        
+  assign axi_s_tb_if.b_ready = dut_if.b_ready;
+
+  assign axi_s_tb_if.ar_id     = dut_if.ar_id;
+  assign axi_s_tb_if.ar_addr   = dut_if.ar_addr;
+  assign axi_s_tb_if.ar_len    = dut_if.ar_len;
+  assign axi_s_tb_if.ar_size   = dut_if.ar_size;
+  assign axi_s_tb_if.ar_burst  = dut_if.ar_burst;
+  assign axi_s_tb_if.ar_lock   = dut_if.ar_lock;
+  assign axi_s_tb_if.ar_cache  = dut_if.ar_cache;
+  assign axi_s_tb_if.ar_prot   = dut_if.ar_prot;
+  assign axi_s_tb_if.ar_qos    = dut_if.ar_qos;
+  assign axi_s_tb_if.ar_region = dut_if.ar_region;
+  assign axi_s_tb_if.ar_user   = dut_if.ar_user;
+  assign axi_s_tb_if.ar_valid  = dut_if.ar_valid;
+  assign dut_if.ar_ready       = axi_s_tb_if.ar_ready;
+  
+  assign dut_if.r_id         = axi_s_tb_if.r_id;      
+  assign dut_if.r_data       = axi_s_tb_if.r_data;        
+  assign dut_if.r_resp       = axi_s_tb_if.r_resp;        
+  assign dut_if.r_last       = axi_s_tb_if.r_last;        
+  assign dut_if.r_user       = axi_s_tb_if.r_user;        
+  assign dut_if.r_valid      = axi_s_tb_if.r_valid;        
+  assign axi_s_tb_if.r_ready = dut_if.r_ready;
+  /* AXI Interface Assignments */
+
 
   assign axi_wr_data_s = 'hDEADBEEF0B501E7E;
   assign axi_wr_addr_s = 'h5000;
