@@ -89,8 +89,8 @@ module axi4_mgr # (
   logic [               8-1:0] axi_arlen_r;
   logic [               2-1:0] wr_err_r, wr_err_s;
   logic [               2-1:0] rd_err_r, rd_err_s;
-  logic [               8-1:0] wr_beat_count_r;
-  logic [               8-1:0] rd_beat_count_r;
+  logic [               9-1:0] wr_beat_count_r;
+  logic [               9-1:0] rd_beat_count_r;
   logic [DATA_COUNT_WIDTH-1:0] wr_beats_remain_r;
   logic [DATA_COUNT_WIDTH-1:0] rd_beats_remain_r;
   logic [  AXI_DATA_WIDTH-1:0] axi_rd_data_r;
@@ -160,7 +160,7 @@ module axi4_mgr # (
 
           axi_mgr_if.w_data <= '0;
 
-          if (req_wr_s == 1'b1 && wr_data_count_i != '0) begin
+          if (req_wr_s == 1'b1 && wr_data_count_i != '0 && wr_beats_remain_r == '0) begin
 
             axi_aw_addr_r   <= axi_wr_addr_i;
             wr_c_state_r    <= AW_INIT;
@@ -317,7 +317,7 @@ module axi4_mgr # (
 
         R_IDLE: begin
 
-          if (req_rd_s == 1'b1 && rd_data_count_i != '0) begin
+          if (req_rd_s == 1'b1 && rd_data_count_i != '0 && rd_beats_remain_r == '0) begin
 
             axi_ar_addr_r   <= axi_rd_addr_i;
             rd_c_state_r    <= AR_INIT;
@@ -330,7 +330,7 @@ module axi4_mgr # (
               rd_beat_count_r   <= rd_data_count_i;
             end
             
-          end else if ( wr_beats_remain_r != '0 ) begin 
+          end else if ( rd_beats_remain_r != '0 ) begin 
 
             rd_c_state_r <= AR_INIT;
 

@@ -24,7 +24,7 @@ module tb_axi4_mgr #(
   parameter unsigned AXI_ID_WIDTH    =    9,
   parameter unsigned AXI_USER_WIDTH  =    5,
   parameter unsigned WORD_SIZE_BYTES =    4,
-  parameter unsigned SIM_TIME_NS     = 1000
+  parameter unsigned SIM_TIME        =   10us
 );
 
   timeunit 1ns/1ps;
@@ -163,15 +163,14 @@ module tb_axi4_mgr #(
 
   initial begin
 
-    $monitor("Write Error change detected. New value: %d", dut_wr_err_s);
-    $monitor("Read Error change detected. New value: %d", dut_rd_err_s);
+    $timeformat(-9,0,"ns");
 
     rstn  = 1'b0;
     tb_axi4_sub.reset();
     
     req_s = 2'b00;
-    wr_data_count_s = 10; // start with single beats
-    rd_data_count_s = 10; // start with single beats
+    wr_data_count_s = 257; // start with single beats
+    rd_data_count_s = 0; // start with single beats
 
     #(2*CLK_PERIOD_NS) rstn = 1'b1;
     #(2*CLK_PERIOD_NS);
@@ -184,8 +183,8 @@ module tb_axi4_mgr #(
   end
 
   initial begin 
-    #(SIM_TIME_NS);
-    $display("%t0: Simulation Complete.", $time);
+    #(SIM_TIME);
+    $display("%10t: Simulation Complete.", $time);
     $finish;
   end
 

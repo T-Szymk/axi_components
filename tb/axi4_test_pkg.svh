@@ -151,7 +151,7 @@ package axi4_test_pkg;
 
     function automatic void reset;
 
-      $display("%t0ns: Resetting AXI4_sub", $time);
+      $display("%10t: Resetting AXI4_sub", $time);
 
       this.axi4.ar_ready  = '0;
 
@@ -387,7 +387,7 @@ package axi4_test_pkg;
 
     task automatic run;
 
-      $display("%t0ns: Running AXI4_sub", $time);
+      $display("%10t: Running AXI4_sub", $time);
 
       fork
         begin 
