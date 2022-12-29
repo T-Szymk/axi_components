@@ -5,7 +5,7 @@
 -- File       : axi4_mgr.sv
 -- Author(s)  : Tom Szymkowiak
 -- Company    : TUNI
--- Created    : 2022-12-28
+-- Created    : 2022-12-29
 -- Design     : axi4_mgr
 -- Platform   : -
 -- Standard   : SystemVerilog '17
@@ -33,32 +33,37 @@
 ********************************************************************************
 -- Revisions:
 -- Date        Version  Author  Description
--- 2022-12-28  1.0      TZS     Created
+-- 2022-12-29  1.0      TZS     Created
 *******************************************************************************/
 
 module axi4_mgr # (
   parameter unsigned AXI_ADDR_WIDTH    = 32,
   parameter unsigned AXI_DATA_WIDTH    = 64,
   parameter unsigned AXI_XSIZE         = (AXI_DATA_WIDTH / 8),
-  parameter unsigned DATA_COUNT_WIDTH  =  8,
-  parameter unsigned WORD_SIZE_BYTES   =  4 
+  parameter unsigned DATA_COUNT_WIDTH  =  8
 ) (
   input  logic                        clk_i,
   input  logic                        rstn_i,
   input  logic [               2-1:0] req_i,
   input  logic [  AXI_ADDR_WIDTH-1:0] axi_wr_addr_i,
   input  logic [  AXI_ADDR_WIDTH-1:0] axi_rd_addr_i,
-  input  logic [  AXI_DATA_WIDTH-1:0] axi_data_i,
+  input  logic                        wr_fifo_gnt_i, // currently unused 
+  input  logic                        rd_fifo_req_i,  
+  input  logic [  AXI_DATA_WIDTH-1:0] wr_fifo_data_i,
   input  logic [DATA_COUNT_WIDTH-1:0] wr_data_count_i,
   input  logic [DATA_COUNT_WIDTH-1:0] rd_data_count_i,
   output logic [               2-1:0] rsp_o,    // bit 1: rd, bit 0: wr
   output logic [               2-1:0] wr_err_o, // bresp
   output logic [               2-1:0] rd_err_o, // rresp
-  output logic [  AXI_DATA_WIDTH-1:0] axi_data_o,
+  output logic                        wr_fifo_req_o,
+  output logic                        rd_fifo_gnt_o,
+  output logic [  AXI_DATA_WIDTH-1:0] rd_fifo_data_o,
   axi4_bus_if.Manager                 axi_mgr_if
 );
 
   /******** SIGNALS/CONSTANTS/TYPES *******************************************/
+
+  localparam unsigned WordSizeBytes = (AXI_DATA_WIDTH / 8);
 
   typedef enum logic [3:0] {
     W_IDLE,
@@ -80,8 +85,11 @@ module axi4_mgr # (
   wr_state_t wr_c_state_r;
   rd_state_t rd_c_state_r;
 
-  logic rsp_wr_s, rsp_rd_s;
+  logic rsp_wr_r, rsp_rd_r;
   logic req_wr_s, req_rd_s, req_wr_r, req_rd_r;
+
+  logic aw_valid_r, w_valid_r;
+  logic ar_valid_r, r_ready_s;
   
   logic [  AXI_ADDR_WIDTH-1:0] axi_aw_addr_r;
   logic [  AXI_ADDR_WIDTH-1:0] axi_ar_addr_r;
@@ -93,10 +101,10 @@ module axi4_mgr # (
   logic [               9-1:0] rd_beat_count_r;
   logic [DATA_COUNT_WIDTH-1:0] wr_beats_remain_r;
   logic [DATA_COUNT_WIDTH-1:0] rd_beats_remain_r;
-  logic [  AXI_DATA_WIDTH-1:0] axi_rd_data_r;
 
   /******** ASSIGNMENTS FMS  **************************************************/
   // AW signals
+  assign axi_mgr_if.aw_valid  = aw_valid_r;
   assign axi_mgr_if.aw_id     = '0;
   assign axi_mgr_if.aw_len    = axi_awlen_r;
   assign axi_mgr_if.aw_size   = $clog2(AXI_XSIZE);
@@ -110,6 +118,7 @@ module axi4_mgr # (
   assign axi_mgr_if.aw_prot   = '0;
 
   // AR signals
+  assign axi_mgr_if.ar_valid  = ar_valid_r;
   assign axi_mgr_if.ar_id     = '0;
   assign axi_mgr_if.ar_len    = axi_arlen_r;
   assign axi_mgr_if.ar_size   = $clog2(AXI_XSIZE);
@@ -120,37 +129,43 @@ module axi4_mgr # (
   assign axi_mgr_if.ar_region = '0;
   assign axi_mgr_if.ar_user   = '0;
   assign axi_mgr_if.ar_prot   = '0;
+
+  // R signals 
+  assign axi_mgr_if.r_ready   = r_ready_s;
+
   // W signals
-  assign axi_mgr_if.w_user    = '0;
+  assign axi_mgr_if.w_valid = w_valid_r;
+  assign axi_mgr_if.w_user  = '0;
+  assign axi_mgr_if.w_data  = (w_valid_r == 1'b1) ?  wr_fifo_data_i : '0;
 
   // Other signals
-  assign axi_data_o      = axi_rd_data_r;
-  assign rsp_wr_s        = (axi_mgr_if.b_valid & axi_mgr_if.b_ready);
-  assign rsp_rd_s        = (axi_mgr_if.r_valid & axi_mgr_if.r_ready);
-  assign rsp_o           = {rsp_rd_s, rsp_wr_s};
-  assign req_wr_s        = req_i[0];
-  assign req_rd_s        = req_i[1];
-  assign wr_err_o        = wr_err_r;
-  assign rd_err_o        = rd_err_r;
+  assign r_ready_s      = rd_fifo_req_i; // r_ready determined by rd_fifo_full
+  assign rd_fifo_data_o = (r_ready_s && axi_mgr_if.r_valid) ? axi_mgr_if.r_data : '0;
+  assign rsp_o          = {rsp_rd_r, rsp_wr_r};
+  assign req_wr_s       = req_i[0];
+  assign req_rd_s       = req_i[1];
+  assign wr_err_o       = wr_err_r;
+  assign rd_err_o       = rd_err_r;
+  assign wr_fifo_req_o  = ( axi_mgr_if.w_ready & w_valid_r );
+  assign rd_fifo_gnt_o  = ( r_ready_s & axi_mgr_if.r_valid );
 
   /******** WRITE FMS  ********************************************************/
   always_ff @(posedge clk_i or negedge rstn_i) begin : wr_fsm
 
     if (~rstn_i) begin
     
-      axi_mgr_if.aw_addr  <= '0;
-      axi_mgr_if.aw_valid <= '0;
-      axi_mgr_if.w_data   <= '0;
-      axi_mgr_if.w_strb   <= '0;
-      axi_mgr_if.w_valid  <= '0;
-      axi_mgr_if.w_last   <= '0;
-      axi_mgr_if.b_ready  <= '0;
-      axi_mgr_if.w_data   <= '0;
-      axi_aw_addr_r       <= '0;
-      axi_awlen_r         <= '0;
-      wr_beat_count_r     <= '0;
-      wr_beats_remain_r   <= '0;
-      wr_c_state_r        <= W_IDLE;
+      axi_mgr_if.aw_addr <= '0;      
+      axi_mgr_if.w_strb  <= '0;      
+      axi_mgr_if.w_last  <= '0;
+      axi_mgr_if.b_ready <= '0;
+      aw_valid_r         <= '0;
+      w_valid_r          <= '0;
+      axi_aw_addr_r      <= '0;
+      axi_awlen_r        <= '0;
+      wr_beat_count_r    <= '0;
+      wr_beats_remain_r  <= '0;
+      rsp_wr_r           <= '0;
+      wr_c_state_r       <= W_IDLE;
 
     end else begin
 
@@ -158,12 +173,12 @@ module axi4_mgr # (
 
         W_IDLE: begin
 
-          axi_mgr_if.w_data <= '0;
+          rsp_wr_r <= 1'b0;
 
           if (req_wr_s == 1'b1 && wr_data_count_i != '0 && wr_beats_remain_r == '0) begin
-
-            axi_aw_addr_r   <= axi_wr_addr_i;
-            wr_c_state_r    <= AW_INIT;
+            
+            axi_aw_addr_r <= axi_wr_addr_i;
+            wr_c_state_r  <= AW_INIT;
 
             if (wr_data_count_i > 256) begin              
               wr_beats_remain_r <= wr_data_count_i - 256;
@@ -175,7 +190,7 @@ module axi4_mgr # (
           
           // current burst complete, but data remaining
           end else if ( wr_beats_remain_r != '0 ) begin 
-
+            
             wr_c_state_r <= AW_INIT;
 
             if ( wr_beats_remain_r > 256 ) begin 
@@ -191,9 +206,9 @@ module axi4_mgr # (
 
         AW_INIT: begin
           
-          axi_mgr_if.aw_addr  <= axi_aw_addr_r;
-          axi_mgr_if.aw_valid <= 1'b1;
-          wr_c_state_r        <= AW;
+          axi_mgr_if.aw_addr <= axi_aw_addr_r;
+          aw_valid_r         <= 1'b1;
+          wr_c_state_r       <= AW;
 
           // check if data count is a power of 2 and if so, use this as burst
           // length, else use single beat bursts
@@ -208,13 +223,11 @@ module axi4_mgr # (
 
           if (axi_mgr_if.aw_ready == 1'b1) begin
             
-            axi_mgr_if.aw_addr  <= '0;
-            axi_mgr_if.aw_valid <= 1'b0;
-            axi_mgr_if.w_valid  <= 1'b1;
-            axi_mgr_if.w_strb   <= '1; // all byte lanes valid
-            axi_awlen_r         <= '0;            
-            // TODO: add write FIFO controls
-            axi_mgr_if.w_data      <= axi_data_i;
+            axi_mgr_if.aw_addr <= '0;
+            aw_valid_r         <= 1'b0;
+            w_valid_r          <= 1'b1; 
+            axi_mgr_if.w_strb  <= '1; // all byte lanes valid
+            axi_awlen_r        <= '0;
 
             // if single beat transaction, got to W_LAST
             if ( axi_awlen_r == '0 ) begin
@@ -233,7 +246,6 @@ module axi4_mgr # (
 
             wr_beat_count_r   <= wr_beat_count_r - 1;
             // TODO: add write FIFO controls
-            axi_mgr_if.w_data <= axi_data_i;
             
             // if it is the second to last beat of the burst
             if ( wr_beat_count_r == 2 ) begin
@@ -254,13 +266,12 @@ module axi4_mgr # (
 
           if (axi_mgr_if.w_ready == 1'b1) begin
 
-            axi_mgr_if.w_valid  <= 1'b0;
-            axi_mgr_if.w_last   <= 1'b0;
-            axi_mgr_if.w_strb   <= '0;
-            axi_mgr_if.w_data   <= '0;
-            axi_mgr_if.b_ready  <= 1'b1;
-            wr_beat_count_r     <= wr_beat_count_r - 1;
-            wr_c_state_r        <= B_RESP;            
+            w_valid_r          <= 1'b0;
+            axi_mgr_if.w_last  <= 1'b0;
+            axi_mgr_if.w_strb  <= '0;
+            axi_mgr_if.b_ready <= 1'b1;
+            wr_beat_count_r    <= wr_beat_count_r - 1;
+            wr_c_state_r       <= B_RESP;            
 
           end
         end
@@ -273,12 +284,13 @@ module axi4_mgr # (
             // if not beats remaining in burst,
             // return to IDLE. Else, create new transaction
             if ( wr_beat_count_r == '0 ) begin
-
+              
+              rsp_wr_r     <= ( wr_beats_remain_r == '0 ) ? 1'b1 : 1'b0;
               wr_c_state_r <= W_IDLE;
 
             end else begin
 
-              axi_aw_addr_r <= axi_aw_addr_r + WORD_SIZE_BYTES; // increment address 
+              axi_aw_addr_r <= axi_aw_addr_r + WordSizeBytes; // increment address 
               wr_c_state_r  <= AW_INIT;
             
             end
@@ -301,21 +313,22 @@ module axi4_mgr # (
 
     if (~rstn_i) begin
       
-      axi_mgr_if.ar_addr  <= '0;
-      axi_mgr_if.ar_valid <= '0;
-      axi_mgr_if.r_ready  <= '0;
-      axi_rd_data_r       <= '0;
-      axi_ar_addr_r       <= '0;
-      axi_arlen_r         <= '0;
-      rd_beat_count_r     <= '0;
-      rd_beats_remain_r   <= '0;
-      rd_c_state_r        <= R_IDLE;
+      axi_mgr_if.ar_addr <= '0;
+      ar_valid_r         <= '0;
+      axi_ar_addr_r      <= '0;
+      axi_arlen_r        <= '0;
+      rd_beat_count_r    <= '0;
+      rd_beats_remain_r  <= '0;
+      rsp_rd_r           <= '0;
+      rd_c_state_r       <= R_IDLE;
 
     end else begin
 
       case (rd_c_state_r)
 
         R_IDLE: begin
+
+          rsp_rd_r <= 1'b0;
 
           if (req_rd_s == 1'b1 && rd_data_count_i != '0 && rd_beats_remain_r == '0) begin
 
@@ -345,9 +358,9 @@ module axi4_mgr # (
         end
 
         AR_INIT: begin
-          axi_mgr_if.ar_addr  <= axi_ar_addr_r;
-          axi_mgr_if.ar_valid <= 1'b1;
-          rd_c_state_r        <= AR;
+          axi_mgr_if.ar_addr <= axi_ar_addr_r;
+          ar_valid_r         <= 1'b1;
+          rd_c_state_r       <= AR;
           
           // check if data count is a power of 2 and if so, use this as burst
           // length, else use single beat bursts
@@ -363,10 +376,9 @@ module axi4_mgr # (
 
           if (axi_mgr_if.ar_ready == 1'b1) begin
             
-            axi_mgr_if.ar_addr  <= '0;
-            axi_mgr_if.ar_valid <= 1'b0;
-            axi_mgr_if.r_ready  <= 1'b1;
-            axi_arlen_r         <= '0;
+            axi_mgr_if.ar_addr <= '0;
+            ar_valid_r         <= 1'b0;
+            axi_arlen_r        <= '0;
 
             // if single beat transaction, got to R_LAST
             if ( axi_arlen_r == '0 ) begin
@@ -379,10 +391,7 @@ module axi4_mgr # (
 
         R: begin
 
-          // updates output with new data each beat
-          axi_rd_data_r <= axi_mgr_if.r_data; // TODO: add read FIFO controls
-
-          if (axi_mgr_if.r_valid == 1'b1) begin
+          if (axi_mgr_if.r_valid == 1'b1 && r_ready_s == 1'b1) begin
 
             rd_beat_count_r <= rd_beat_count_r - 1;
             
@@ -401,21 +410,19 @@ module axi4_mgr # (
 
         R_LAST: begin
           // RLAST is ignored.
-          if (axi_mgr_if.r_valid == 1'b1) begin
+          if (axi_mgr_if.r_valid == 1'b1 && r_ready_s == 1'b1) begin
 
-            axi_mgr_if.r_ready <= 1'b0;
-            axi_rd_data_r      <= axi_mgr_if.r_data; // TODO: add read FIFO controls
-            rd_beat_count_r    <= rd_beat_count_r - 1;
+            rd_beat_count_r <= rd_beat_count_r - 1;
 
             // if not beats remaining in burst,
             // return to IDLE. Else, create new transaction
             if ( rd_beat_count_r == '0 ) begin
-
-              rd_c_state_r  <= R_IDLE;
+              rsp_rd_r     <= ( rd_beats_remain_r == '0 ) ? 1'b1 : 1'b0;
+              rd_c_state_r <= R_IDLE;
 
             end else begin
 
-              axi_ar_addr_r <= axi_ar_addr_r + WORD_SIZE_BYTES; // increment address 
+              axi_ar_addr_r <= axi_ar_addr_r + WordSizeBytes; // increment address 
               rd_c_state_r  <= AR_INIT; 
             
             end            
@@ -455,5 +462,8 @@ module axi4_mgr # (
       rd_err_r <= rd_err_s;
     end
   end
+
+  /******* FIFO CTRL PULSE GEN ************************************************/
+  
 
 endmodule // axi4_mgr

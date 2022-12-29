@@ -1,9 +1,11 @@
-onerror {resume}
-quietly WaveActivateNextPane {} 0
+add log -r sim:/tb_axi4_mgr/*
+
 add wave -noupdate -group top         sim:/tb_axi4_mgr/*
 add wave -noupdate -group dut         sim:/tb_axi4_mgr/i_dut/*
 add wave -noupdate -group dut_if      sim:/tb_axi4_mgr/dut_if/*
 add wave -noupdate -group axi_s_tb_if sim:/tb_axi4_mgr/axi_s_tb_if/*
+add wave -noupdate -group wr_fifo     sim:/tb_axi4_mgr/i_wr_fifo/*
+add wave -noupdate -group rd_fifo     sim:/tb_axi4_mgr/i_rd_fifo/*
 
 quietly wave cursor active 1
 configure wave -namecolwidth 189

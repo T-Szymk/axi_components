@@ -5,7 +5,7 @@
 -- File       : tb_axi4_mgr.sv
 -- Author(s)  : Tom Szymkowiak
 -- Company    : TUNI
--- Created    : 2022-12-28
+-- Created    : 2022-12-29
 -- Design     : tb_axi4_mgr
 -- Platform   : -
 -- Standard   : SystemVerilog '17
@@ -14,7 +14,7 @@
 ********************************************************************************
 -- Revisions:
 -- Date        Version  Author  Description
--- 2022-12-28  1.0      TZS     Created
+-- 2022-12-29  1.0      TZS     Created
 *******************************************************************************/
 
 module tb_axi4_mgr #(
@@ -23,17 +23,23 @@ module tb_axi4_mgr #(
   parameter unsigned AXI_DATA_WIDTH  =   64,
   parameter unsigned AXI_ID_WIDTH    =    9,
   parameter unsigned AXI_USER_WIDTH  =    5,
-  parameter unsigned WORD_SIZE_BYTES =    4,
-  parameter unsigned SIM_TIME        =   10us
+  parameter unsigned FIFO_DEPTH      = 1024,
+  parameter unsigned SIM_TIME        =    1ms
 );
 
   timeunit 1ns/1ps;
 
   localparam int AXISize        = (AXI_DATA_WIDTH/8);
-  localparam int DataCountWidth = 9; // 256 max
+  localparam int DataCountWidth = (FIFO_DEPTH > 1) ? $clog2(FIFO_DEPTH) : 1; 
 
   logic       clk;
-  logic       rstn;
+  logic       rstn, dut_rstn;
+
+  logic       wr_fifo_pop_s,   rd_fifo_pop_s;
+  logic       wr_fifo_push_s,  rd_fifo_push_s;
+  logic       wr_fifo_full_s,  rd_fifo_full_s;
+  logic       wr_fifo_empty_s, rd_fifo_empty_s;  
+
   logic [1:0] req_s;
   logic [1:0] rsp_s;
 
@@ -41,10 +47,13 @@ module tb_axi4_mgr #(
   logic [DataCountWidth-1:0] rd_data_count_s;
   logic [             2-1:0] dut_wr_err_s;
   logic [             2-1:0] dut_rd_err_s;
+  logic [AXI_DATA_WIDTH-1:0] dut_data_s;
   logic [AXI_DATA_WIDTH-1:0] axi_wr_data_s;
   logic [AXI_DATA_WIDTH-1:0] axi_rd_data_s;
   logic [AXI_ADDR_WIDTH-1:0] axi_wr_addr_s;
   logic [AXI_ADDR_WIDTH-1:0] axi_rd_addr_s;
+
+  int unsigned fifo_write_count;
 
   axi4_bus_test_if #(
     .ADDR_WIDTH ( AXI_ADDR_WIDTH ),
@@ -121,71 +130,192 @@ module tb_axi4_mgr #(
   assign dut_if.b_valid      = axi_s_tb_if.b_valid;        
   assign axi_s_tb_if.b_ready = dut_if.b_ready;
 
-  /* AXI Interface Assignments */
+  /* Other Assignments */
 
-
-  assign axi_wr_data_s = 'hDEADBEEF0B501E7E;
   assign axi_wr_addr_s = 'h5000;
   assign axi_rd_addr_s = 'h6000;
 
   initial begin
     forever begin
-      #(CLK_PERIOD_NS/2) clk = 1'b0;
-      #(CLK_PERIOD_NS/2) clk = 1'b1;
+      clk = 1'b0;
+      #(CLK_PERIOD_NS/2);
+      clk = 1'b1;
+      #(CLK_PERIOD_NS/2);
     end
   end
 
   /* COMPONENT AND DUT INSTANTIATIONS */
 
-  // TODO: add fifo_v3
+  // Write data is read from this FIFO
+  fifo_v3 #(
+    .FALL_THROUGH ( 0                          ),                         
+    .DATA_WIDTH   ( AXI_DATA_WIDTH             ),                       
+    .DEPTH        ( FIFO_DEPTH                 ),                  
+    .dtype        ( logic [AXI_DATA_WIDTH-1:0] )
+  ) i_wr_fifo (
+    .clk_i      ( clk             ),      
+    .rst_ni     ( rstn            ),       
+    .flush_i    ( '0              ),        
+    .testmode_i ( '0              ),           
+    .full_o     ( wr_fifo_full_s  ),       
+    .empty_o    ( wr_fifo_empty_s ),        
+    .usage_o    ( wr_data_count_s ),        
+    .data_i     ( dut_data_s      ),       
+    .push_i     ( wr_fifo_push_s  ),       
+    .data_o     ( axi_wr_data_s   ),       
+    .pop_i      ( wr_fifo_pop_s   )     
+  );
+  
+  // Read data is written to the following FIFO
+  fifo_v3 #(
+    .FALL_THROUGH ( 0                          ),                         
+    .DATA_WIDTH   ( AXI_DATA_WIDTH             ),                       
+    .DEPTH        ( FIFO_DEPTH                 ),                  
+    .dtype        ( logic [AXI_DATA_WIDTH-1:0] )                      
+  ) i_rd_fifo (
+    .clk_i      ( clk             ),                  
+    .rst_ni     ( rstn            ),                   
+    .flush_i    ( '0              ),                    
+    .testmode_i ( '0              ),                       
+    .full_o     ( rd_fifo_full_s  ),       
+    .empty_o    ( rd_fifo_empty_s ),        
+    .usage_o    ( /* NC */        ),                    
+    .data_i     ( axi_rd_data_s   ),       
+    .push_i     ( rd_fifo_push_s  ),       
+    .data_o     ( /* NC */        ),                   
+    .pop_i      ( rd_fifo_pop_s   )     
+  );
 
   axi4_mgr #(
     .AXI_ADDR_WIDTH   ( AXI_ADDR_WIDTH  ),
     .AXI_DATA_WIDTH   ( AXI_DATA_WIDTH  ),
     .AXI_XSIZE        ( AXISize         ),         
-    .DATA_COUNT_WIDTH ( DataCountWidth  ),
-    .WORD_SIZE_BYTES  ( WORD_SIZE_BYTES )                
+    .DATA_COUNT_WIDTH ( DataCountWidth  )           
   ) i_dut (
     .clk_i           ( clk              ),      
-    .rstn_i          ( rstn             ),       
+    .rstn_i          ( dut_rstn         ),       
     .req_i           ( req_s            ),      
     .axi_wr_addr_i   ( axi_wr_addr_s    ),              
-    .axi_rd_addr_i   ( axi_rd_addr_s    ),              
-    .axi_data_i      ( axi_wr_data_s    ),           
+    .axi_rd_addr_i   ( axi_rd_addr_s    ),
+    .wr_fifo_gnt_i   ( ~wr_fifo_empty_s ),
+    .rd_fifo_req_i   ( ~rd_fifo_full_s  ),              
+    .wr_fifo_data_i  ( axi_wr_data_s    ),           
     .wr_data_count_i ( wr_data_count_s  ),                
     .rd_data_count_i ( rd_data_count_s  ),                
     .rsp_o           ( rsp_s            ),      
     .wr_err_o        ( dut_wr_err_s     ),         
-    .rd_err_o        ( dut_rd_err_s     ),         
-    .axi_data_o      ( axi_rd_data_s    ),           
+    .rd_err_o        ( dut_rd_err_s     ),
+    .wr_fifo_req_o   ( wr_fifo_pop_s    ),
+    .rd_fifo_gnt_o   ( rd_fifo_push_s   ),         
+    .rd_fifo_data_o  ( axi_rd_data_s    ),           
     .axi_mgr_if      ( dut_if           )           
   );
 
-  initial begin
+  task automatic fill_FIFO ( /*************************************************/
+    ref    logic                      clk,
+    ref    logic                      full,
+    ref    logic [DataCountWidth-1:0] count,
+    input  integer unsigned           count_max_i,
+    ref    logic                      push_o,
+    ref    logic [AXI_DATA_WIDTH-1:0] data_o    
+  );
+
+    logic [AXI_DATA_WIDTH-1:0] tmp_data = '0;
+
+    $display("%0t: Filling write FIFO", $time);
+
+    push_o   = 1'b0;
+    data_o   = tmp_data;
+
+    @(negedge clk);
+    #(500ps);
+
+    while (count != count_max_i && !full) begin 
+            
+      data_o   = tmp_data;
+      tmp_data = tmp_data + 1;
+      push_o   = 1'b1;
+      @(negedge clk);
+      #(500ps);      
+
+    end
+
+    push_o   = 1'b0;
+
+    $display("%0t: Write FIFO filled with %d entries", $time, tmp_data);
+
+    @(negedge clk);
+
+  endtask /********************************************************************/
+
+  task automatic complete_transfer ( /*****************************************/
+    ref logic       clk,
+    ref logic [1:0] req,
+    ref logic [1:0] rsp
+  );
+    
+    @(negedge clk);
+    $display("%0t: Initiating write request.", $time);
+    req = 2'b01;
+    @(negedge clk);
+    req = 2'b00;
+
+    while(rsp[0] == 1'b0) begin 
+      @(negedge clk);
+    end
+
+    $display("%0t: Write request completed.", $time);
+
+    @(negedge clk);
+
+  endtask /********************************************************************/
+
+  initial begin /**************************************************************/
 
     $timeformat(-9,0,"ns");
 
-    rstn  = 1'b0;
-    tb_axi4_sub.reset();
+    rstn            = 1'b0;
+    dut_rstn        = 1'b0;
+    req_s           = 2'b00;  
+    rd_fifo_pop_s   = 1'b0; 
+    rd_data_count_s = '0; 
+    dut_data_s      = '0;
+    wr_fifo_push_s  = '0;
+
+    fifo_write_count = 1;
     
-    req_s = 2'b00;
-    wr_data_count_s = 257; // start with single beats
-    rd_data_count_s = 0; // start with single beats
+    tb_axi4_sub.reset();
 
     #(2*CLK_PERIOD_NS) rstn = 1'b1;
-    #(2*CLK_PERIOD_NS);
+    #(2*CLK_PERIOD_NS) dut_rstn = 1'b1;
+    
+    fork 
+      
+      begin 
+        tb_axi4_sub.run();
+      end 
 
-    req_s = 2'b11; // start read and write trans
-    tb_axi4_sub.run();
-    // infinite loop
-    forever @(posedge clk);
+      begin
+        while (fifo_write_count < FIFO_DEPTH) begin
+    
+          fill_FIFO(clk, wr_fifo_full_s, wr_data_count_s, fifo_write_count, wr_fifo_push_s, dut_data_s);
+          complete_transfer(clk, req_s, rsp_s);
+      
+          fifo_write_count = fifo_write_count + 4;
+    
+        end
+      end
 
-  end
+    join
 
-  initial begin 
+  end /************************************************************************/
+
+  initial begin /**************************************************************/
+    
     #(SIM_TIME);
     $display("%10t: Simulation Complete.", $time);
     $finish;
-  end
+
+  end /************************************************************************/
 
 endmodule // tb_axi4_mgr
