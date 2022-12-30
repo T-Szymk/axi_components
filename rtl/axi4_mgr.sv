@@ -99,6 +99,8 @@ module axi4_mgr # (
   logic [               2-1:0] rd_err_r, rd_err_s;
   logic [               9-1:0] wr_beat_count_r;
   logic [               9-1:0] rd_beat_count_r;
+  logic [               9-1:0] wr_trans_len_r;
+  logic [               9-1:0] rd_trans_len_r;
   logic [DATA_COUNT_WIDTH-1:0] wr_beats_remain_r;
   logic [DATA_COUNT_WIDTH-1:0] rd_beats_remain_r;
 
@@ -161,8 +163,9 @@ module axi4_mgr # (
       aw_valid_r         <= '0;
       w_valid_r          <= '0;
       axi_aw_addr_r      <= '0;
-      axi_awlen_r        <= '0;
+      axi_awlen_r        <= '0;      
       wr_beat_count_r    <= '0;
+      wr_trans_len_r     <= '0;
       wr_beats_remain_r  <= '0;
       rsp_wr_r           <= '0;
       wr_c_state_r       <= W_IDLE;
@@ -213,9 +216,11 @@ module axi4_mgr # (
           // check if data count is a power of 2 and if so, use this as burst
           // length, else use single beat bursts
           if ( ((wr_beat_count_r & (wr_beat_count_r - 1)) == '0) && (wr_beat_count_r != 0)) begin
-            axi_awlen_r <= (wr_beat_count_r - 1);
+            axi_awlen_r    <= (wr_beat_count_r - 1);
+            wr_trans_len_r <= wr_beat_count_r;
           end else begin
-            axi_awlen_r <= '0;
+            axi_awlen_r    <=    '0;
+            wr_trans_len_r <=  9'd1;
           end
         end
 
@@ -281,17 +286,19 @@ module axi4_mgr # (
           if (axi_mgr_if.b_valid == 1'b1) begin
 
             axi_mgr_if.b_ready <= 1'b0;
+            // increment address by the number of beats completed within the burst
+            axi_aw_addr_r  <= axi_aw_addr_r + (WordSizeBytes * wr_trans_len_r);
+            wr_trans_len_r <= '0;
             // if not beats remaining in burst,
             // return to IDLE. Else, create new transaction
             if ( wr_beat_count_r == '0 ) begin
               
-              rsp_wr_r     <= ( wr_beats_remain_r == '0 ) ? 1'b1 : 1'b0;
-              wr_c_state_r <= W_IDLE;
+              rsp_wr_r       <= ( wr_beats_remain_r == '0 ) ? 1'b1 : 1'b0;
+              wr_c_state_r   <= W_IDLE;
 
             end else begin
-
-              axi_aw_addr_r <= axi_aw_addr_r + WordSizeBytes; // increment address 
-              wr_c_state_r  <= AW_INIT;
+                
+              wr_c_state_r   <= AW_INIT;
             
             end
           end
@@ -318,6 +325,7 @@ module axi4_mgr # (
       axi_ar_addr_r      <= '0;
       axi_arlen_r        <= '0;
       rd_beat_count_r    <= '0;
+      rd_trans_len_r     <= '0;
       rd_beats_remain_r  <= '0;
       rsp_rd_r           <= '0;
       rd_c_state_r       <= R_IDLE;
@@ -365,9 +373,11 @@ module axi4_mgr # (
           // check if data count is a power of 2 and if so, use this as burst
           // length, else use single beat bursts
           if ( ((rd_beat_count_r & (rd_beat_count_r - 1)) == '0) && (rd_beat_count_r != 0) ) begin
-            axi_arlen_r  <= (rd_beat_count_r - 1);
+            axi_arlen_r    <= (rd_beat_count_r - 1);
+            rd_trans_len_r <= rd_beat_count_r;
           end else begin
-            axi_arlen_r <= '0;
+            axi_arlen_r    <=   '0;
+            rd_trans_len_r <= 9'd1;
           end
     
         end
@@ -413,17 +423,19 @@ module axi4_mgr # (
           if (axi_mgr_if.r_valid == 1'b1 && r_ready_s == 1'b1) begin
 
             rd_beat_count_r <= rd_beat_count_r - 1;
-
+            // increment address by the number of beats completed within the burst
+            axi_ar_addr_r  <= axi_ar_addr_r + (WordSizeBytes * rd_trans_len_r);
+            rd_trans_len_r <= '0;  
             // if not beats remaining in burst,
             // return to IDLE. Else, create new transaction
             if ( rd_beat_count_r == 1 ) begin
-              rsp_rd_r     <= ( rd_beats_remain_r == '0 ) ? 1'b1 : 1'b0;
-              rd_c_state_r <= R_IDLE;
+
+              rsp_rd_r       <= ( rd_beats_remain_r == '0 ) ? 1'b1 : 1'b0;
+              rd_c_state_r   <= R_IDLE;
 
             end else begin
-
-              axi_ar_addr_r <= axi_ar_addr_r + WordSizeBytes; // increment address 
-              rd_c_state_r  <= AR_INIT; 
+              
+              rd_c_state_r   <= AR_INIT; 
             
             end            
           end
