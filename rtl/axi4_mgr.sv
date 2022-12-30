@@ -5,10 +5,10 @@
 -- File       : axi4_mgr.sv
 -- Author(s)  : Tom Szymkowiak
 -- Company    : TUNI
--- Created    : 2022-12-29
+-- Created    : 2022-12-30
 -- Design     : axi4_mgr
 -- Platform   : -
--- Standard   : SystemVerilog '17
+-- Standard   : SystemVerilog '12
 ********************************************************************************
 -- Description: Generic non-pipelined AXI4 manager.
 --              AOnly supports single and INCR burst transactions.
@@ -33,7 +33,7 @@
 ********************************************************************************
 -- Revisions:
 -- Date        Version  Author  Description
--- 2022-12-29  1.0      TZS     Created
+-- 2022-12-30  1.0      TZS     Created
 *******************************************************************************/
 
 module axi4_mgr # (
@@ -335,7 +335,7 @@ module axi4_mgr # (
             axi_ar_addr_r   <= axi_rd_addr_i;
             rd_c_state_r    <= AR_INIT;
             
-            if (wr_data_count_i > 256) begin              
+            if (rd_data_count_i > 256) begin              
               rd_beats_remain_r <= rd_data_count_i - 256;
               rd_beat_count_r   <= 256;
             end else begin 
@@ -416,7 +416,7 @@ module axi4_mgr # (
 
             // if not beats remaining in burst,
             // return to IDLE. Else, create new transaction
-            if ( rd_beat_count_r == '0 ) begin
+            if ( rd_beat_count_r == 1 ) begin
               rsp_rd_r     <= ( rd_beats_remain_r == '0 ) ? 1'b1 : 1'b0;
               rd_c_state_r <= R_IDLE;
 

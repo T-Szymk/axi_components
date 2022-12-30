@@ -45,13 +45,10 @@ module tb_axi4_mgr #(
 
   logic [DataCountWidth-1:0] wr_data_count_s;
   logic [DataCountWidth-1:0] rd_data_count_s;
-  logic [             2-1:0] dut_wr_err_s;
-  logic [             2-1:0] dut_rd_err_s;
+  logic [             2-1:0] dut_wr_err_s, dut_rd_err_s;
   logic [AXI_DATA_WIDTH-1:0] dut_data_s;
-  logic [AXI_DATA_WIDTH-1:0] axi_wr_data_s;
-  logic [AXI_DATA_WIDTH-1:0] axi_rd_data_s;
-  logic [AXI_ADDR_WIDTH-1:0] axi_wr_addr_s;
-  logic [AXI_ADDR_WIDTH-1:0] axi_rd_addr_s;
+  logic [AXI_DATA_WIDTH-1:0] axi_wr_data_s, axi_rd_data_s;
+  logic [AXI_ADDR_WIDTH-1:0] axi_wr_addr_s, axi_rd_addr_s;
 
   int unsigned fifo_write_count;
 
