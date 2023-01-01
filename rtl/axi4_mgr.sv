@@ -37,33 +37,33 @@
 *******************************************************************************/
 
 module axi4_mgr # (
-  parameter unsigned AXI_ADDR_WIDTH    = 32,
-  parameter unsigned AXI_DATA_WIDTH    = 64,
-  parameter unsigned AXI_XSIZE         = (AXI_DATA_WIDTH / 8),
+  parameter unsigned AXI4_ADDR_WIDTH    = 32,
+  parameter unsigned AXI4_DATA_WIDTH    = 64,
+  parameter unsigned AXI_XSIZE         = (AXI4_DATA_WIDTH / 8),
   parameter unsigned DATA_COUNT_WIDTH  =  8
 ) (
-  input  logic                        clk_i,
-  input  logic                        rstn_i,
-  input  logic [               2-1:0] req_i,
-  input  logic [  AXI_ADDR_WIDTH-1:0] axi_wr_addr_i,
-  input  logic [  AXI_ADDR_WIDTH-1:0] axi_rd_addr_i,
-  input  logic                        wr_fifo_gnt_i, // currently unused 
-  input  logic                        rd_fifo_req_i,  
-  input  logic [  AXI_DATA_WIDTH-1:0] wr_fifo_data_i,
-  input  logic [DATA_COUNT_WIDTH-1:0] wr_data_count_i,
-  input  logic [DATA_COUNT_WIDTH-1:0] rd_data_count_i,
-  output logic [               2-1:0] rsp_o,    // bit 1: rd, bit 0: wr
-  output logic [               2-1:0] wr_err_o, // bresp
-  output logic [               2-1:0] rd_err_o, // rresp
-  output logic                        wr_fifo_req_o,
-  output logic                        rd_fifo_gnt_o,
-  output logic [  AXI_DATA_WIDTH-1:0] rd_fifo_data_o,
-  axi4_bus_if.Manager                 axi_mgr_if
+  input  logic                         clk_i,
+  input  logic                         rstn_i,
+  input  logic [                2-1:0] req_i,
+  input  logic [  AXI4_ADDR_WIDTH-1:0] axi_wr_addr_i,
+  input  logic [  AXI4_ADDR_WIDTH-1:0] axi_rd_addr_i,
+  input  logic                         wr_fifo_gnt_i, // currently unused 
+  input  logic                         rd_fifo_req_i,  
+  input  logic [  AXI4_DATA_WIDTH-1:0] wr_fifo_data_i,
+  input  logic [ DATA_COUNT_WIDTH-1:0] wr_data_count_i,
+  input  logic [ DATA_COUNT_WIDTH-1:0] rd_data_count_i,
+  output logic [                2-1:0] rsp_o,    // bit 1: rd, bit 0: wr
+  output logic [                2-1:0] wr_err_o, // bresp
+  output logic [                2-1:0] rd_err_o, // rresp
+  output logic                         wr_fifo_req_o,
+  output logic                         rd_fifo_gnt_o,
+  output logic [  AXI4_DATA_WIDTH-1:0] rd_fifo_data_o,
+  axi4_bus_if.Manager                  axi_mgr_if
 );
 
   /******** SIGNALS/CONSTANTS/TYPES *******************************************/
 
-  localparam unsigned WordSizeBytes = (AXI_DATA_WIDTH / 8);
+  localparam unsigned WordSizeBytes = (AXI4_DATA_WIDTH / 8);
 
   typedef enum logic [3:0] {
     W_IDLE,
@@ -91,8 +91,8 @@ module axi4_mgr # (
   logic aw_valid_r, w_valid_r;
   logic ar_valid_r, r_ready_s;
   
-  logic [  AXI_ADDR_WIDTH-1:0] axi_aw_addr_r;
-  logic [  AXI_ADDR_WIDTH-1:0] axi_ar_addr_r;
+  logic [  AXI4_ADDR_WIDTH-1:0] axi_aw_addr_r;
+  logic [  AXI4_ADDR_WIDTH-1:0] axi_ar_addr_r;
   logic [               8-1:0] axi_awlen_r;
   logic [               8-1:0] axi_arlen_r;
   logic [               2-1:0] wr_err_r, wr_err_s;

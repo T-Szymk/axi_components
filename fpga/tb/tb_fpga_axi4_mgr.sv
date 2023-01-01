@@ -182,7 +182,7 @@ module tb_fpga_axi4_mgr #(
 
   /* COMPONENT DECLARATION ****************************************************/
 
-  fpga_axi4_mgr_wrapper # (       
+  fpga_axi4_mgr_test_wrapper # (       
     .AXI_ADDR_WIDTH   ( AXI_ADDR_WIDTH ),            
     .AXI_DATA_WIDTH   ( AXI_DATA_WIDTH ),            
     .AXI_ID_WIDTH     ( AXI_ID_WIDTH   ),          
