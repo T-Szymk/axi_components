@@ -18,25 +18,24 @@
 -- 2023-01-01  1.0      TZS     Created
 *******************************************************************************/
 
-module tb_axi_lite_registers #(
-  parameter time     CLK_PERIOD_NS   =   10,
-  parameter unsigned AXI4_ADDR_WIDTH  =  32,
-  parameter unsigned AXI4_DATA_WIDTH  =  64,
-  parameter unsigned AXIL_ADDR_WIDTH  =  32,
-  parameter unsigned AXIL_DATA_WIDTH  =  32,
-  parameter unsigned AXI_ID_WIDTH    =    4,
-  parameter unsigned AXI_USER_WIDTH  =    5,
-  parameter unsigned FIFO_DEPTH      = 1024,
-  parameter unsigned SIM_TIME        =    1ms
+module tb_axi_lite_registers #( 
+  parameter time     CLK_PERIOD_NS    =   10,
+  parameter unsigned AXI4_ADDR_WIDTH  =   32,
+  parameter unsigned AXI4_DATA_WIDTH  =   64,
+  parameter unsigned AXIL_ADDR_WIDTH  =   32,
+  parameter unsigned AXIL_DATA_WIDTH  =   32,
+  parameter unsigned AXI_ID_WIDTH     =    4,
+  parameter unsigned AXI_USER_WIDTH   =    5,
+  parameter unsigned FIFO_DEPTH       = 1024,
+  parameter unsigned SIM_TIME         =    1ms
 );
   
   timeunit 1ns/1ps;
 
   /* LOCAL PARAMS/VARS/CONST/INTF DECLARATIONS ********************************/
 
-  localparam integer unsigned AXISize        = (AXIL_DATA_WIDTH/8);
+  localparam integer unsigned AXILSizeBytes  = (AXIL_DATA_WIDTH/8);
   localparam integer unsigned DataCountWidth = (FIFO_DEPTH > 1) ? $clog2(FIFO_DEPTH) : 1;
-  localparam integer unsigned TestDataCount  = 420;
 
   logic clk, rstn;
 
@@ -72,11 +71,11 @@ module tb_axi_lite_registers #(
   logic [               2-1:0] req_s;
   logic [ AXIL_ADDR_WIDTH-1:0] axi_wr_addr_s;
   logic [ AXIL_ADDR_WIDTH-1:0] axi_rd_addr_s;
-  logic [DATA_COUNT_WIDTH-1:0] rd_data_count_s;
+  logic [  DataCountWidth-1:0] rd_data_count_s;
   logic [ AXI4_DATA_WIDTH-1:0] wr_fifo_data_s;
   logic [ AXI4_DATA_WIDTH-1:0] rd_fifo_data_s;
-  logic [DATA_COUNT_WIDTH-1:0] wr_fifo_usage_s;
-  logic [DATA_COUNT_WIDTH-1:0] rd_fifo_usage_s;
+  logic [  DataCountWidth-1:0] wr_fifo_usage_s;
+  logic [  DataCountWidth-1:0] rd_fifo_usage_s;
   logic                        wr_fifo_full_s;  
   logic                        rd_fifo_full_s;
   logic                        wr_fifo_empty_s; 
@@ -85,7 +84,26 @@ module tb_axi_lite_registers #(
   logic [               2-1:0] wr_err_s;  // bresp
   logic [               2-1:0] rd_err_s;  // rresp
 
-  logic [ AXIL_DATA_WIDTH-1:0] read_data_s,
+  logic [ AXIL_DATA_WIDTH-1:0] read_data_s;
+
+  logic [ AXIL_ADDR_WIDTH-1:0] ENABLE             = 'h00;
+  logic [ AXIL_ADDR_WIDTH-1:0] REQUEST            = 'h04;
+  logic [ AXIL_ADDR_WIDTH-1:0] RESPONSE           = 'h08;
+  logic [ AXIL_ADDR_WIDTH-1:0] AXI_WR_ADDR        = 'h0C;
+  logic [ AXIL_ADDR_WIDTH-1:0] AXI_RD_ADDR        = 'h10;
+  logic [ AXIL_ADDR_WIDTH-1:0] AXI_RD_COUNT       = 'h14;
+  logic [ AXIL_ADDR_WIDTH-1:0] RD_ERR             = 'h18; 
+  logic [ AXIL_ADDR_WIDTH-1:0] WR_ERR             = 'h1C;
+  logic [ AXIL_ADDR_WIDTH-1:0] WR_FIFO_DATA_IN_L  = 'h20;
+  logic [ AXIL_ADDR_WIDTH-1:0] WR_FIFO_DATA_IN_H  = 'h24;
+  logic [ AXIL_ADDR_WIDTH-1:0] WR_FIFO_PUSH       = 'h28; 
+  logic [ AXIL_ADDR_WIDTH-1:0] WR_FIFO_USAGE      = 'h2C;
+  logic [ AXIL_ADDR_WIDTH-1:0] WR_FIFO_STATUS     = 'h30;
+  logic [ AXIL_ADDR_WIDTH-1:0] RD_FIFO_DATA_OUT_L = 'h34;
+  logic [ AXIL_ADDR_WIDTH-1:0] RD_FIFO_DATA_OUT_H = 'h38;
+  logic [ AXIL_ADDR_WIDTH-1:0] RD_FIFO_POP        = 'h3C;
+  logic [ AXIL_ADDR_WIDTH-1:0] RD_FIFO_USAGE      = 'h40;
+  logic [ AXIL_ADDR_WIDTH-1:0] RD_FIFO_STATUS     = 'h44;
 
   /* ASSIGNMENTS **************************************************************/
                                                                                                                                   
@@ -159,6 +177,7 @@ module tb_axi_lite_registers #(
     $timeformat(-9,0,"ns");
     
     rstn                = '0;
+    
     rd_fifo_data_s      = '0;                 
     wr_fifo_usage_s     = '0;                  
     rd_fifo_usage_s     = '0;                  
@@ -180,31 +199,63 @@ module tb_axi_lite_registers #(
     axil_sub_ar_addr_s  = '0;       
     axil_sub_ar_prot_s  = '0;       
     axil_sub_ar_valid_s = '0;        
-    axil_sub_r_ready_s  = '0;       
+    axil_sub_r_ready_s  = '0;    
+    
+    #(CLK_PERIOD_NS*2) rstn = 1'b1;    
+   
+    // set enable
+    write_address( ENABLE, "ENABLE", '1, clk, axil_sub_aw_addr_s, axil_sub_aw_valid_s, axil_sub_aw_ready_s, axil_sub_w_data_s, axil_sub_w_strb_s, axil_sub_w_valid_s, axil_sub_w_ready_s, axil_sub_b_valid_s, axil_sub_b_ready_s);    
+    
+    // test wr fifo status
+    read_address( WR_FIFO_STATUS, "WR_FIFO_STATUS", read_data_s, clk, axil_sub_ar_addr_s, axil_sub_ar_valid_s, axil_sub_ar_ready_s, axil_sub_r_data_s, axil_sub_r_valid_s, axil_sub_r_ready_s);
+    $display("%10t: Setting wr_fifo_full_s...", $time);
+    wr_fifo_full_s = 1'b1;
+    read_address( WR_FIFO_STATUS, "WR_FIFO_STATUS", read_data_s, clk, axil_sub_ar_addr_s, axil_sub_ar_valid_s, axil_sub_ar_ready_s, axil_sub_r_data_s, axil_sub_r_valid_s, axil_sub_r_ready_s);    
+    $display("%10t: Setting wr_fifo_empty_s...", $time);
+    wr_fifo_empty_s = 1'b1;
+    read_address( WR_FIFO_STATUS, "WR_FIFO_STATUS", read_data_s, clk, axil_sub_ar_addr_s, axil_sub_ar_valid_s, axil_sub_ar_ready_s, axil_sub_r_data_s, axil_sub_r_valid_s, axil_sub_r_ready_s);
+    $display("%10t: Clearing wr_fifo_full_s and wr_fifo_empty_s...", $time);
+    wr_fifo_full_s  = '0;
+    wr_fifo_empty_s = '0;
+    
+    // test wr fifo usage
+    read_address( WR_FIFO_USAGE, "WR_FIFO_USAGE", read_data_s, clk, axil_sub_ar_addr_s, axil_sub_ar_valid_s, axil_sub_ar_ready_s, axil_sub_r_data_s, axil_sub_r_valid_s, axil_sub_r_ready_s);
+    $display("%10t: Setting wr_fifo_usage_s to all ones...", $time);
+    wr_fifo_usage_s = '1;
+    read_address( WR_FIFO_USAGE, "WR_FIFO_USAGE", read_data_s, clk, axil_sub_ar_addr_s, axil_sub_ar_valid_s, axil_sub_ar_ready_s, axil_sub_r_data_s, axil_sub_r_valid_s, axil_sub_r_ready_s);
+    $display("%10t: Clearing wr_fifo_usage_s...", $time);
+    wr_fifo_usage_s = '0;
+    read_address( WR_FIFO_USAGE, "WR_FIFO_USAGE", read_data_s, clk, axil_sub_ar_addr_s, axil_sub_ar_valid_s, axil_sub_ar_ready_s, axil_sub_r_data_s, axil_sub_r_valid_s, axil_sub_r_ready_s);
+    write_address( WR_FIFO_DATA_IN_L, "WR_FIFO_DATA_IN_L", '1, clk, axil_sub_aw_addr_s, axil_sub_aw_valid_s, axil_sub_aw_ready_s, axil_sub_w_data_s, axil_sub_w_strb_s, axil_sub_w_valid_s, axil_sub_w_ready_s, axil_sub_b_valid_s, axil_sub_b_ready_s);    
+    write_address( WR_FIFO_PUSH, "WR_FIFO_PUSH", '1, clk, axil_sub_aw_addr_s, axil_sub_aw_valid_s, axil_sub_aw_ready_s, axil_sub_w_data_s, axil_sub_w_strb_s, axil_sub_w_valid_s, axil_sub_w_ready_s, axil_sub_b_valid_s, axil_sub_b_ready_s);    
+    write_address( WR_FIFO_PUSH, "WR_FIFO_PUSH", '1, clk, axil_sub_aw_addr_s, axil_sub_aw_valid_s, axil_sub_aw_ready_s, axil_sub_w_data_s, axil_sub_w_strb_s, axil_sub_w_valid_s, axil_sub_w_ready_s, axil_sub_b_valid_s, axil_sub_b_ready_s);    
+    write_address( WR_FIFO_PUSH, "WR_FIFO_PUSH", '1, clk, axil_sub_aw_addr_s, axil_sub_aw_valid_s, axil_sub_aw_ready_s, axil_sub_w_data_s, axil_sub_w_strb_s, axil_sub_w_valid_s, axil_sub_w_ready_s, axil_sub_b_valid_s, axil_sub_b_ready_s);    
+    write_address( WR_FIFO_PUSH, "WR_FIFO_PUSH", '1, clk, axil_sub_aw_addr_s, axil_sub_aw_valid_s, axil_sub_aw_ready_s, axil_sub_w_data_s, axil_sub_w_strb_s, axil_sub_w_valid_s, axil_sub_w_ready_s, axil_sub_b_valid_s, axil_sub_b_ready_s);    
+    
+    // set wr address
+    write_address( AXI_WR_ADDR, "AXI_WR_ADDR", 'hDEADBEEF, clk, axil_sub_aw_addr_s, axil_sub_aw_valid_s, axil_sub_aw_ready_s, axil_sub_w_data_s, axil_sub_w_strb_s, axil_sub_w_valid_s, axil_sub_w_ready_s, axil_sub_b_valid_s, axil_sub_b_ready_s);    
+    read_address( AXI_WR_ADDR, "AXI_WR_ADDR", read_data_s, clk, axil_sub_ar_addr_s, axil_sub_ar_valid_s, axil_sub_ar_ready_s, axil_sub_r_data_s, axil_sub_r_valid_s, axil_sub_r_ready_s);
+    
+    // init xfer
+    write_address( REQUEST, "REQUEST", '1, clk, axil_sub_aw_addr_s, axil_sub_aw_valid_s, axil_sub_aw_ready_s, axil_sub_w_data_s, axil_sub_w_strb_s, axil_sub_w_valid_s, axil_sub_w_ready_s, axil_sub_b_valid_s, axil_sub_b_ready_s);    
+    write_address( REQUEST, "REQUEST", '0, clk, axil_sub_aw_addr_s, axil_sub_aw_valid_s, axil_sub_aw_ready_s, axil_sub_w_data_s, axil_sub_w_strb_s, axil_sub_w_valid_s, axil_sub_w_ready_s, axil_sub_b_valid_s, axil_sub_b_ready_s);    
+   
+    // set rsp for a cycle
+    @(posedge clk);
+    $display("%10t: Setting rsp to all ones...", $time);
+    rsp_s = '1;
+    @(posedge clk);
+    @(negedge clk); 
+    $display("%10t: Clearing rsp...expecting bit1 and bit2 to latch...", $time);
+    rsp_s = '0;
+    @(negedge clk); 
+    
+    read_address( RESPONSE, "RESPONSE", read_data_s, clk, axil_sub_ar_addr_s, axil_sub_ar_valid_s, axil_sub_ar_ready_s, axil_sub_r_data_s, axil_sub_r_valid_s, axil_sub_r_ready_s);
+    write_address( RESPONSE, "RESPONSE", 'h1, clk, axil_sub_aw_addr_s, axil_sub_aw_valid_s, axil_sub_aw_ready_s, axil_sub_w_data_s, axil_sub_w_strb_s, axil_sub_w_valid_s, axil_sub_w_ready_s, axil_sub_b_valid_s, axil_sub_b_ready_s);    
+    read_address( RESPONSE, "RESPONSE", read_data_s, clk, axil_sub_ar_addr_s, axil_sub_ar_valid_s, axil_sub_ar_ready_s, axil_sub_r_data_s, axil_sub_r_valid_s, axil_sub_r_ready_s);
 
-    write_address( 'hC, 
-                   'hDEADBEEF, 
-                   clk, 
-                   axil_sub_aw_addr_s,
-                   axil_sub_aw_valid_s,
-                   axil_sub_aw_ready_s,
-                   axil_sub_w_data_s,
-                   axil_sub_w_strb_s,
-                   axil_sub_w_valid_s,
-                   axil_sub_w_ready_s,
-                   axil_sub_b_valid_s,
-                   axil_sub_b_ready_s
-                 );    
-    read_address( 'hC,
-                  read_data_s,
-                  clk,
-                  axil_sub_ar_addr_s,
-                  axil_sub_ar_valid_s,
-                  axil_sub_ar_ready_s,
-                  axil_sub_r_data_s,
-                  axil_sub_r_valid_s,
-                  axil_sub_r_ready_s,
-    );
+    // disable subsystem
+    write_address( ENABLE, "ENABLE", '0, clk, axil_sub_aw_addr_s, axil_sub_aw_valid_s, axil_sub_aw_ready_s, axil_sub_w_data_s, axil_sub_w_strb_s, axil_sub_w_valid_s, axil_sub_w_ready_s, axil_sub_b_valid_s, axil_sub_b_ready_s);    
 
     $finish;     
 
@@ -214,6 +265,7 @@ module tb_axi_lite_registers #(
 
   task automatic write_address(
     input logic [ AXIL_ADDR_WIDTH-1:0] addr,
+    input string                       reg_id,
     input logic [ AXIL_DATA_WIDTH-1:0] data,
 
     ref   logic                        clk,
@@ -236,45 +288,60 @@ module tb_axi_lite_registers #(
     axi_w_data_o   = '0;   
     axi_w_strb_o   = '0;   
     axi_w_valid_o  = '0;    
-    axi_b_valid_o  = '0; 
+    axi_b_ready_o  = '0; 
   
-    @(negedge clk);
+    @(negedge clk); // update vals on negedge
   
     axi_aw_valid_o = 1'b1;
     axi_aw_addr_o  = addr;
     
+    @(posedge clk); // check vals on posedge
+    
+
     while (~axi_aw_ready_i) begin
-      @(negedge clk); 
-    end
+      @(posedge clk); 
+    end    
+
+    @(negedge clk);
   
     axi_aw_valid_o = 1'b0;
     axi_aw_addr_o  =   '0;
     axi_w_data_o   = data;   
     axi_w_strb_o   =  'hF;   
     axi_w_valid_o  = 1'b1;
+
+    @(posedge clk);    
     
     while (~axi_w_ready_i) begin
-      @(negedge clk); 
-    end 
+      @(posedge clk); 
+    end     
+
+    @(negedge clk);
   
     axi_w_data_o   =   '0;   
     axi_w_strb_o   =   '0;   
     axi_w_valid_o  =   '0;
     axi_b_ready_o  = 1'b1;
+
+    @(posedge clk);       
   
     while (~axi_b_valid_i) begin
-      @(negedge clk); 
+      @(posedge clk);    
     end 
+
+    @(negedge clk);
     
     axi_b_ready_o  = 1'b0;
   
-    @(negedge clk);  
-    $display("%0t: AXI-Lite write of DATA: 0x%h to ADDR: 0x%h complete.", $time, data, addr);
+    @(posedge clk);  
+
+    $display("%10t: AXI-Lite write of DATA: 0x%8h to   ADDR: %2d (0x%2h) '%s' complete.", $time, data, addr, addr, reg_id);
   
   endtask
 
   task automatic read_address(
     input  logic [ AXIL_ADDR_WIDTH-1:0] addr,
+    input  string                       reg_id,
     output logic [ AXIL_DATA_WIDTH-1:0] data,
 
     ref    logic                        clk,
@@ -290,30 +357,40 @@ module tb_axi_lite_registers #(
   
     axi_ar_addr_o  = '0;    
     axi_ar_valid_o = '0;  
-    axi_i_ready_o  = '0;        
+    axi_r_ready_o  = '0;        
   
     @(negedge clk);
   
     axi_ar_valid_o = 1'b1;
     axi_ar_addr_o  = addr;
     
+    @(posedge clk);    
+
     while (~axi_ar_ready_i) begin
-      @(negedge clk); 
-    end
+      @(posedge clk);   
+    end    
+
+    @(negedge clk);
   
     axi_ar_valid_o = 1'b0;
     axi_ar_addr_o  =   '0;
     axi_r_ready_o  = 1'b1; 
+
+    @(posedge clk);    
     
     while (~axi_r_valid_i) begin
-      @(negedge clk); 
+      @(posedge clk);    
     end 
-  
-    data          = axi_r_data_i;   
+
+    data = axi_r_data_i; 
+
+    @(negedge clk);
+        
     axi_r_ready_o = '0;
   
-    @(negedge clk);  
-    $display("%0t: AXI-Lite read of DATA: 0x%h from ADDR: 0x%h complete.", $time, data, addr);
+    @(posedge clk);    
+
+    $display("%10t: AXI-Lite read  of DATA: 0x%8h from ADDR: %2d (0x%2h) '%s' complete.", $time, data, addr, addr, reg_id);
   
   endtask
 

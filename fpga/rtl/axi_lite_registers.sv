@@ -167,11 +167,10 @@ module axi_lite_registers #(
   logic [RegisterSizeBytes-1:0][8-1:0] reg_bank_r;
   
   logic ar_ready_r, aw_ready_r, w_ready_r, b_valid_r, r_valid_r;
-  logic [AXI4_DATA_WIDTH-1:0] r_data_r;
-  logic [              2-1:0] r_resp_r;
-  logic [              2-1:0] b_resp_r;
+  logic [AXIL_DATA_WIDTH-1:0] r_data_s;
 
-  logic [1:0] rsp_r, rsp_s, rsp_ack;
+  logic [1:0] rsp_s; 
+  logic       rsp_ack;
 
   logic [AXIL_ADDR_WIDTH-1:0] ar_addr_r, aw_addr_r;
 
@@ -179,10 +178,17 @@ module axi_lite_registers #(
 
   assign ar_ready_o = ar_ready_r;
   assign aw_ready_o = aw_ready_r;
+  assign r_valid_o  = r_valid_r;
+  assign r_data_o   = r_data_s;
   assign w_ready_o  = w_ready_r;
+  assign b_valid_o  = b_valid_r;
+  assign b_resp_o   = '0; // error reporting not supported
+  assign r_resp_o   = '0;
 
   assign local_aw_addr_s = (aw_addr_r - BASE_ADDR);
   assign local_ar_addr_s = (ar_addr_r - BASE_ADDR);
+
+  assign r_data_s = (r_valid_r && r_ready_i) ? reg_bank_r[local_ar_addr_s +: AXILSizeBytes] : '0;
 
 /* READ FSM *******************************************************************/
   always_ff @(posedge clk_i or negedge rstn_i) begin
@@ -191,8 +197,7 @@ module axi_lite_registers #(
   
       ar_ready_r   <= '0;
       ar_addr_r    <= '0;  
-      r_valid_r    <= '0;    
-      r_resp_r     <= '0;       
+      r_valid_r    <= '0;       
       c_rd_state_r <= RD_IDLE;
     
     end else begin 
@@ -220,12 +225,11 @@ module axi_lite_registers #(
   
         R: begin 
           // read out lowest 
-          r_data_r  <= reg_bank_r[local_aw_addr_s +: AXILSizeBytes];
+          
           r_valid_r <= 1'b1;
   
           if (r_ready_i) begin 
   
-            r_data_r     <= '0;
             r_valid_r    <= 1'b0;
             ar_ready_r   <= 1'b1;
             ar_addr_r    <= '0;
@@ -249,7 +253,10 @@ module axi_lite_registers #(
     
     if (~rstn_i) begin 
   
-      aw_ready_r   <= 1'b1;
+      aw_ready_r   <= '0;
+      w_ready_r    <= '0;
+      b_valid_r    <= '0;
+      aw_addr_r    <= '0;
       c_wr_state_r <= WR_IDLE;
     
     end else begin 
@@ -264,7 +271,7 @@ module axi_lite_registers #(
         
         AW: begin 
           
-          if (aw_valid_i && ~w_valid_i) begin 
+          if (aw_valid_i && !w_valid_i) begin 
             
             aw_ready_r   <= 1'b0;
             aw_addr_r    <= aw_addr_i;
@@ -329,19 +336,19 @@ module axi_lite_registers #(
         case ( local_aw_addr_s )
   
         ENABLE: begin
-          reg_bank_r[ENABLE +: (AXILSizeBytes-1)] <= '0;
-          reg_bank_r[ENABLE +  (AXILSizeBytes-1)] <= {'0, w_data_i[0]}; 
+          reg_bank_r[(ENABLE +1 ) +: (AXILSizeBytes-1)] <= '0;
+          reg_bank_r[ENABLE]                            <= {'0, w_data_i[0]}; 
         end
   
         REQUEST: begin 
-          reg_bank_r[REQUEST +: (AXILSizeBytes-1)] <= '0;
-          reg_bank_r[REQUEST +  (AXILSizeBytes-1)] <= {'0, w_data_i[1:0]};
+          reg_bank_r[(REQUEST+1) +: (AXILSizeBytes-1)] <= '0;
+          reg_bank_r[REQUEST]                          <= {'0, w_data_i[1:0]};
         end
   
         RESPONSE: begin
-          // write ack only
-          reg_bank_r[RESPONSE +: (AXILSizeBytes-1)] <= '0;
-          reg_bank_r[RESPONSE +  (AXILSizeBytes-1)] <= {'0, w_data_i[0]}; 
+          // write ack only and only for a clock cycle
+          reg_bank_r[(RESPONSE+1) +: (AXILSizeBytes-1)] <= '0;
+          reg_bank_r[RESPONSE]                          <= {'0, w_data_i[0]}; 
         end
   
         AXI_WR_ADDR: begin
@@ -372,9 +379,9 @@ module axi_lite_registers #(
           reg_bank_r[WR_FIFO_DATA_IN_H +: AXILSizeBytes] <= w_data_i;
         end
   
-        WR_FIFO_PUSH: begin
-          reg_bank_r[WR_FIFO_PUSH +: (AXILSizeBytes-1)] <= '0;
-          reg_bank_r[WR_FIFO_PUSH +  (AXILSizeBytes-1)] <= {'0, w_data_i[0]};
+        WR_FIFO_PUSH: begin // note, only set for a single cycle, cleared in else branch
+          reg_bank_r[(WR_FIFO_PUSH+1) +: (AXILSizeBytes-1)] <= '0;
+          reg_bank_r[WR_FIFO_PUSH]                          <= {'0, w_data_i[0]};
         end
   
         WR_FIFO_USAGE: begin
@@ -393,8 +400,9 @@ module axi_lite_registers #(
           // read only
         end
   
-        RD_FIFO_POP: begin
-          // read only
+        RD_FIFO_POP: begin // note, only set for a single cycle, cleared in else branch
+          reg_bank_r[(RD_FIFO_POP+1) +: (AXILSizeBytes-1)] <= '0;
+          reg_bank_r[RD_FIFO_POP]                          <= {'0, w_data_i[0]};
         end
   
         RD_FIFO_USAGE: begin
@@ -413,19 +421,24 @@ module axi_lite_registers #(
       end else begin 
       
         // RESPONSE
-        reg_bank_r[RESPONSE+(AXILSizeBytes-1)][2:1] <= rsp_i;
+        reg_bank_r[RESPONSE][2:1] <= rsp_s;
+        reg_bank_r[RESPONSE][0]   <= 1'b0;
         // RD_ERR
         reg_bank_r[RD_ERR +(AXILSizeBytes-1)][1:0] <= rd_err_i;
         // WR_ERR
         reg_bank_r[WR_ERR +(AXILSizeBytes-1)][1:0] <= wr_err_i;
+        // WR_FIFO_PUSH
+        reg_bank_r[WR_FIFO_PUSH +: (AXILSizeBytes)] <= '0;
         // WR_FIFO_USAGE
         reg_bank_r[WR_FIFO_USAGE +: AXILSizeBytes] <= wr_fifo_usage_i;
         // WR_FIFO_STATUS
-        reg_bank_r[WR_FIFO_STATUS+(AXILSizeBytes-1)][1:0] <= {wr_fifo_full_i, wr_fifo_empty_i};
+        reg_bank_r[WR_FIFO_STATUS][1:0] <= {wr_fifo_full_i, wr_fifo_empty_i};
+        // RD_FIFO_POP
+        reg_bank_r[RD_FIFO_POP +: (AXILSizeBytes)] <= '0;
         // RD_FIFO_USAGE
         reg_bank_r[RD_FIFO_USAGE +: AXILSizeBytes] <= rd_fifo_usage_i;
         // RD_FIFO_STATUS
-        reg_bank_r[RD_FIFO_STATUS+(AXILSizeBytes-1)][1:0] <= {rd_fifo_full_i, rd_fifo_empty_i};
+        reg_bank_r[RD_FIFO_STATUS][1:0] <= {rd_fifo_full_i, rd_fifo_empty_i};
       
       end
     end
@@ -439,19 +452,9 @@ module axi_lite_registers #(
    the register. Currently the ACK bit clears both read and write response.
    This could potentially change, depending on test results.
 */
-  
-  always_ff @(posedge clk_i or negedge rstn_i) begin 
-    
-    if (~rstn_i) begin 
-      rsp_r <= '0;
-    end else begin 
-      rsp_r <= rsp_s;
-    end 
-  end 
-
   always_comb begin 
     // assign for readability
-    rsp_ack = reg_bank_r[RESPONSE + (AXILSizeBytes-1)][0];
+    rsp_ack = reg_bank_r[RESPONSE][0];
 
     for (int i = 0; i < 2; i++) begin
       
@@ -459,13 +462,13 @@ module axi_lite_registers #(
 
         rsp_s[i] = 1'b0;
 
-      end else if (~rsp_r[i] && rsp_s[i]) begin 
+      end else if (~reg_bank_r[RESPONSE][i+1] && rsp_i[i]) begin 
 
         rsp_s[i] = 1'b1; // latch response to 1 if rising edge is detected
 
       end else begin
 
-        rsp_s[i] = rsp_r[i];
+        rsp_s[i] = reg_bank_r[RESPONSE][i+1];
 
       end
     end
@@ -473,14 +476,14 @@ module axi_lite_registers #(
 
 /* OUTPUT ASSIGNMENTS *********************************************************/
   
-  assign enable_o        =  reg_bank_r[ENABLE + (AXIL_DATA_WIDTH-1)][0];
-  assign rd_fifo_pop_o   =  reg_bank_r[RD_FIFO_POP + (AXIL_DATA_WIDTH-1)][0];
-  assign wr_fifo_push_o  =  reg_bank_r[WR_FIFO_PUSH + (AXIL_DATA_WIDTH-1)][0];
-  assign req_o           =  reg_bank_r[REQUEST + (AXIL_DATA_WIDTH-1)][1:0];
-  assign axi_wr_addr_o   =  reg_bank_r[AXI_WR_ADDR +: AXIL_DATA_WIDTH];
-  assign axi_rd_addr_o   =  reg_bank_r[AXI_RD_ADDR +: AXIL_DATA_WIDTH];
-  assign rd_data_count_o =  reg_bank_r[AXI_RD_COUNT +: AXIL_DATA_WIDTH];
-  assign wr_fifo_data_o  = {reg_bank_r[WR_FIFO_DATA_IN_H +: AXIL_DATA_WIDTH],
-                            reg_bank_r[WR_FIFO_DATA_IN_L +: AXIL_DATA_WIDTH]};
+  assign enable_o        =  reg_bank_r[ENABLE][0];
+  assign rd_fifo_pop_o   =  reg_bank_r[RD_FIFO_POP][0];
+  assign wr_fifo_push_o  =  reg_bank_r[WR_FIFO_PUSH][0];
+  assign req_o           =  reg_bank_r[REQUEST][1:0];
+  assign axi_wr_addr_o   =  reg_bank_r[AXI_WR_ADDR +: AXILSizeBytes];
+  assign axi_rd_addr_o   =  reg_bank_r[AXI_RD_ADDR +: AXILSizeBytes];
+  assign rd_data_count_o =  reg_bank_r[AXI_RD_COUNT +: AXILSizeBytes];
+  assign wr_fifo_data_o  = {reg_bank_r[WR_FIFO_DATA_IN_H +: AXILSizeBytes],
+                            reg_bank_r[WR_FIFO_DATA_IN_L +: AXILSizeBytes]};
 
 endmodule // axi_lite_registers
