@@ -27,7 +27,7 @@ module fpga_axi4_mgr_wrapper_bd #(
   parameter integer AXI_USER_WIDTH    =           8,
   parameter integer FIFO_DEPTH        =          32,
   parameter integer AXI_XSIZE         =        (AXI4_DATA_WIDTH / 8),
-  parameter integer REG_BASE_ADDR     = 'h4000_0000,
+  parameter integer REG_BASE_ADDR     =         'h0,
   parameter integer DATA_COUNT_WIDTH  =           8,
   parameter integer AXILSizeBytes     = (AXIL_DATA_WIDTH / 8),
   parameter integer AXI4SizeBytes     = (AXI4_DATA_WIDTH / 8)
