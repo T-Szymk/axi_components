@@ -5,7 +5,7 @@
 -- File       : tb_axi_lite_registers.sv
 -- Author(s)  : Tom Szymkowiak
 -- Company    : TUNI
--- Created    : 2023-01-01
+-- Created    : 2023-01-04
 -- Design     : tb_axi_lite_registers
 -- Platform   : -
 -- Standard   : SystemVerilog '12
@@ -15,7 +15,7 @@
 ********************************************************************************
 -- Revisions:
 -- Date        Version  Author  Description
--- 2023-01-01  1.0      TZS     Created
+-- 2023-01-04  1.0      TZS     Created
 *******************************************************************************/
 
 module tb_axi_lite_registers #( 
@@ -35,6 +35,7 @@ module tb_axi_lite_registers #(
   /* LOCAL PARAMS/VARS/CONST/INTF DECLARATIONS ********************************/
 
   localparam integer unsigned AXILSizeBytes  = (AXIL_DATA_WIDTH/8);
+  localparam integer unsigned AXI4SizeBytes  = (AXI4_DATA_WIDTH/8);
   localparam integer unsigned DataCountWidth = (FIFO_DEPTH > 1) ? $clog2(FIFO_DEPTH) : 1;
 
   typedef struct {
@@ -232,12 +233,14 @@ module tb_axi_lite_registers #(
 
     axi_write_signals_s.axi_aw_addr_o  = '0;       
     axil_sub_aw_prot_s                 = '0;       
-    axi_write_signals_s.axi_aw_valid_o = '0;        
+    axi_write_signals_s.axi_aw_valid_o = '0;                
     axi_write_signals_s.axi_w_data_o   = '0;      
     axi_write_signals_s.axi_w_strb_o   = '0;      
     axi_write_signals_s.axi_w_valid_o  = '0;       
-    axi_write_signals_s.axi_b_ready_o  = '0;       
-    axi_read_signals_s.axi_ar_addr_o   = '0;       
+    axi_write_signals_s.axi_b_ready_o  = '0; 
+    axi_read_signals_s.axi_ar_valid_o  = '0;      
+    axi_read_signals_s.axi_ar_addr_o   = '0;    
+    axi_read_signals_s.axi_r_ready_o   = '0;   
     axil_sub_ar_prot_s                 = '0;       
     
     #(CLK_PERIOD_NS*2) rstn = 1'b1;    
@@ -247,29 +250,43 @@ module tb_axi_lite_registers #(
     
     // test wr fifo status
     read_address( WR_FIFO_STATUS, "WR_FIFO_STATUS", read_data_s, clk, axi_read_signals_s);
-    $display("%10t: Setting wr_fifo_full_s...", $time);
+    
+    $display("\n%10t: Setting wr_fifo_full_s...", $time);
     wr_fifo_full_s = 1'b1;
+
     read_address( WR_FIFO_STATUS, "WR_FIFO_STATUS", read_data_s, clk, axi_read_signals_s);
-    $display("%10t: Setting wr_fifo_empty_s...", $time);
+    
+    $display("\n%10t: Setting wr_fifo_empty_s...", $time);
+    
     wr_fifo_empty_s = 1'b1;
+    
     read_address( WR_FIFO_STATUS, "WR_FIFO_STATUS", read_data_s, clk, axi_read_signals_s);
-    $display("%10t: Clearing wr_fifo_full_s and wr_fifo_empty_s...", $time);
+    
+    $display("\n%10t: Clearing wr_fifo_full_s and wr_fifo_empty_s...", $time);
     wr_fifo_full_s  = '0;
     wr_fifo_empty_s = '0;
     
     // test wr fifo usage
     read_address( WR_FIFO_USAGE, "WR_FIFO_USAGE", read_data_s, clk, axi_read_signals_s);
-    $display("%10t: Setting wr_fifo_usage_s to all ones...", $time);
+    
+    $display("\n%10t: Setting wr_fifo_usage_s to all ones...", $time);
     wr_fifo_usage_s = '1;
+    
     read_address( WR_FIFO_USAGE, "WR_FIFO_USAGE", read_data_s, clk, axi_read_signals_s);
-    $display("%10t: Clearing wr_fifo_usage_s...", $time);
+    
+    $display("\n%10t: Clearing wr_fifo_usage_s...", $time);
     wr_fifo_usage_s = '0;
+    
     read_address( WR_FIFO_USAGE, "WR_FIFO_USAGE", read_data_s, clk, axi_read_signals_s);
-    write_address( WR_FIFO_DATA_IN_L, "WR_FIFO_DATA_IN_L", '1, clk, axi_write_signals_s );
-    write_address( WR_FIFO_PUSH, "WR_FIFO_PUSH", '1, clk, axi_write_signals_s );
-    write_address( WR_FIFO_PUSH, "WR_FIFO_PUSH", '1, clk, axi_write_signals_s );
-    write_address( WR_FIFO_PUSH, "WR_FIFO_PUSH", '1, clk, axi_write_signals_s );
-    write_address( WR_FIFO_PUSH, "WR_FIFO_PUSH", '1, clk, axi_write_signals_s );
+    
+    // test writing data to FIFO
+    write_address( WR_FIFO_DATA_IN_L, "WR_FIFO_DATA_IN_L", 'hBEEF, clk, axi_write_signals_s );
+    write_address( WR_FIFO_DATA_IN_H, "WR_FIFO_DATA_IN_L", 'hDEAD, clk, axi_write_signals_s );
+
+    $display("%10t: read value of 0x%0h from wr_fifo_data_s", $time, wr_fifo_data_s);
+
+    repeat (4)
+      write_address( WR_FIFO_PUSH, "WR_FIFO_PUSH", '1, clk, axi_write_signals_s );
     
     // set wr address
     write_address( AXI_WR_ADDR, "AXI_WR_ADDR", 'hDEADBEEF, clk, axi_write_signals_s);
@@ -281,7 +298,7 @@ module tb_axi_lite_registers #(
    
     // set rsp for a cycle
     @(posedge clk);
-    $display("%10t: Setting rsp to all ones...", $time);
+    $display("\n%10t: Setting rsp to all ones...", $time);
     rsp_s = '1;
     @(posedge clk);
     @(negedge clk); 
@@ -293,8 +310,80 @@ module tb_axi_lite_registers #(
     write_address( RESPONSE, "RESPONSE", 'h1, clk, axi_write_signals_s);
     read_address( RESPONSE, "RESPONSE", read_data_s, clk, axi_read_signals_s);
 
+    // test rd fifo status
+    read_address( RD_FIFO_STATUS, "RD_FIFO_STATUS", read_data_s, clk, axi_read_signals_s);
+    
+    $display("\n%10t: Setting rd_fifo_full_s...", $time);
+    rd_fifo_full_s = 1'b1;
+
+    read_address( RD_FIFO_STATUS, "RD_FIFO_STATUS", read_data_s, clk, axi_read_signals_s);
+
+    $display("\n%10t: Setting rd_fifo_empty_s...", $time);
+    
+    rd_fifo_empty_s = 1'b1;
+    
+    read_address( RD_FIFO_STATUS, "RD_FIFO_STATUS", read_data_s, clk, axi_read_signals_s);
+    
+    $display("\n%10t: Clearing rd_fifo_full_s and rd_fifo_empty_s...", $time);
+    rd_fifo_full_s  = '0;
+    rd_fifo_empty_s = '0;
+
+    // test rd fifo usage
+    read_address( RD_FIFO_USAGE, "RD_FIFO_USAGE", read_data_s, clk, axi_read_signals_s);
+    
+    $display("\n%10t: Setting rd_fifo_usage_s to all ones...", $time);
+    rd_fifo_usage_s = '1;
+    
+    read_address( RD_FIFO_USAGE, "RD_FIFO_USAGE", read_data_s, clk, axi_read_signals_s);
+    
+    $display("\n%10t: Clearing rd_fifo_usage_s...", $time);
+    rd_fifo_usage_s = '0;
+
+    read_address( RD_FIFO_USAGE, "RD_FIFO_USAGE", read_data_s, clk, axi_read_signals_s);
+
+    // test reading data from FIFO
+    read_address( RD_FIFO_DATA_OUT_H, "RD_FIFO_DATA_OUT_H", read_data_s, clk, axi_read_signals_s);
+    read_address( RD_FIFO_DATA_OUT_L, "RD_FIFO_DATA_OUT_L", read_data_s, clk, axi_read_signals_s);
+    
+    rd_fifo_data_s = 'hDEADBEEFABBADABA;
+    $display("\n%10t: Setting rd_fifo_data_s to pattern: 0x%0h", $time, rd_fifo_data_s);
+
+    read_address( RD_FIFO_DATA_OUT_H, "RD_FIFO_DATA_OUT_H", read_data_s, clk, axi_read_signals_s);
+    read_address( RD_FIFO_DATA_OUT_L, "RD_FIFO_DATA_OUT_L", read_data_s, clk, axi_read_signals_s);
+    
+    $display("\n%10t: clearing rd_fifo_data_s...", $time);
+    rd_fifo_data_s = '0;
+
+    repeat (4)
+      write_address( RD_FIFO_POP, "RD_FIFO_POP", '1, clk, axi_write_signals_s );
+
+    // set rd address
+    write_address( AXI_RD_ADDR, "AXI_RD_ADDR", 'hDEADBEEF, clk, axi_write_signals_s);
+    read_address( AXI_RD_ADDR, "AXI_RD_ADDR", read_data_s, clk, axi_read_signals_s);
+
+    // test error generation
+    read_address( WR_ERR, "WR_ERR", read_data_s, clk, axi_read_signals_s);
+    read_address( RD_ERR, "RD_ERR", read_data_s, clk, axi_read_signals_s);
+    
+    $display("\n%10t: Setting rd_err and wr_err to all 1's ...", $time);
+    wr_err_s = '1;
+    rd_err_s = '1;
+
+    read_address( WR_ERR, "WR_ERR", read_data_s, clk, axi_read_signals_s);
+    read_address( RD_ERR, "RD_ERR", read_data_s, clk, axi_read_signals_s);
+
+    $display("\n%10t: Clearing rd_err and wr_err...", $time);
+    wr_err_s = '0;
+    rd_err_s = '0;
+
+    read_address( WR_ERR, "WR_ERR", read_data_s, clk, axi_read_signals_s);
+    read_address( RD_ERR, "RD_ERR", read_data_s, clk, axi_read_signals_s);
+
     // disable subsystem
     write_address( ENABLE, "ENABLE", '0, clk, axi_write_signals_s);
+    
+    repeat (10)
+      @(posedge clk);
 
     $finish;     
 

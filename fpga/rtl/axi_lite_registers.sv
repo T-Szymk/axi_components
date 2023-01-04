@@ -12,6 +12,7 @@
 --------------------------------------------------------------------------------
 -- Description: AXI4-Lite registers used to control the FPGA implementation of 
 --              the AXI4 manager.
+--              AXI4 cannot currently be greater than 64b wide.
 -- Register Map:
 -- ┌───────┬────────┬────────────────────┐───────┐
 -- │  #:   │ OFFSET:│ ID:                │ OP:   │
@@ -423,20 +424,36 @@ module axi_lite_registers #(
         // RESPONSE
         reg_bank_r[RESPONSE][2:1] <= rsp_s;
         reg_bank_r[RESPONSE][0]   <= 1'b0;
+        
         // RD_ERR
-        reg_bank_r[RD_ERR +(AXILSizeBytes-1)][1:0] <= rd_err_i;
+        reg_bank_r[RD_ERR][1:0] <= rd_err_i;
+        
         // WR_ERR
-        reg_bank_r[WR_ERR +(AXILSizeBytes-1)][1:0] <= wr_err_i;
+        reg_bank_r[WR_ERR][1:0] <= wr_err_i;
+        
         // WR_FIFO_PUSH
         reg_bank_r[WR_FIFO_PUSH +: (AXILSizeBytes)] <= '0;
+        
         // WR_FIFO_USAGE
         reg_bank_r[WR_FIFO_USAGE +: AXILSizeBytes] <= wr_fifo_usage_i;
+        
         // WR_FIFO_STATUS
         reg_bank_r[WR_FIFO_STATUS][1:0] <= {wr_fifo_full_i, wr_fifo_empty_i};
+        
         // RD_FIFO_POP
         reg_bank_r[RD_FIFO_POP +: (AXILSizeBytes)] <= '0;
-        // RD_FIFO_USAGE
+        
+        // RD_FIFO_DATA_OUT_L
+        reg_bank_r[RD_FIFO_DATA_OUT_L +: (AXILSizeBytes)] <= rd_fifo_data_i[AXIL_DATA_WIDTH-1:0];
+        
+        // RD_FIFO_DATA_OUT_H - Note, AXI4 cannot be > 64b
+        reg_bank_r[RD_FIFO_DATA_OUT_H +: (AXILSizeBytes)] <= 
+        (AXIL_DATA_WIDTH <= AXI4_DATA_WIDTH) ? rd_fifo_data_i[AXI4_DATA_WIDTH-1:AXIL_DATA_WIDTH] :
+                                              '0;
+        
+                                              // RD_FIFO_USAGE
         reg_bank_r[RD_FIFO_USAGE +: AXILSizeBytes] <= rd_fifo_usage_i;
+        
         // RD_FIFO_STATUS
         reg_bank_r[RD_FIFO_STATUS][1:0] <= {rd_fifo_full_i, rd_fifo_empty_i};
       
