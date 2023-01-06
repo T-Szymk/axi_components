@@ -93,16 +93,16 @@ module axi4_mgr # (
   
   logic [  AXI4_ADDR_WIDTH-1:0] axi_aw_addr_r;
   logic [  AXI4_ADDR_WIDTH-1:0] axi_ar_addr_r;
-  logic [               8-1:0] axi_awlen_r;
-  logic [               8-1:0] axi_arlen_r;
-  logic [               2-1:0] wr_err_r, wr_err_s;
-  logic [               2-1:0] rd_err_r, rd_err_s;
-  logic [               9-1:0] wr_beat_count_r;
-  logic [               9-1:0] rd_beat_count_r;
-  logic [               9-1:0] wr_trans_len_r;
-  logic [               9-1:0] rd_trans_len_r;
-  logic [DATA_COUNT_WIDTH-1:0] wr_beats_remain_r;
-  logic [DATA_COUNT_WIDTH-1:0] rd_beats_remain_r;
+  logic [                8-1:0] axi_awlen_r;
+  logic [                8-1:0] axi_arlen_r;
+  logic [                2-1:0] wr_err_r, wr_err_s;
+  logic [                2-1:0] rd_err_r, rd_err_s;
+  logic [                9-1:0] wr_beat_count_r;
+  logic [                9-1:0] rd_beat_count_r;
+  logic [                9-1:0] wr_trans_len_r;
+  logic [                9-1:0] rd_trans_len_r;
+  logic [ DATA_COUNT_WIDTH-1:0] wr_beats_remain_r;
+  logic [ DATA_COUNT_WIDTH-1:0] rd_beats_remain_r;
 
   /******** ASSIGNMENTS FMS  **************************************************/
   // AW signals

@@ -27,6 +27,9 @@ module tb_axi_lite_registers #(
   parameter unsigned AXI_ID_WIDTH     =    4,
   parameter unsigned AXI_USER_WIDTH   =    5,
   parameter unsigned FIFO_DEPTH       = 1024,
+  parameter integer AXI_XSIZE         = (AXI4_DATA_WIDTH / 8),
+  parameter integer REG_BASE_ADDR     =  'h0,
+  parameter integer DATA_COUNT_WIDTH  =    8,
   parameter unsigned SIM_TIME         =    1ms
 );
   
@@ -64,6 +67,55 @@ module tb_axi_lite_registers #(
 
   logic clk, rstn;
 
+  logic [    AXI_ID_WIDTH-1:0] axi4_mgr_aw_id_s;
+  logic [ AXI4_ADDR_WIDTH-1:0] axi4_mgr_aw_addr_s;
+  logic [               8-1:0] axi4_mgr_aw_len_s;
+  logic [               3-1:0] axi4_mgr_aw_size_s;
+  logic [               2-1:0] axi4_mgr_aw_burst_s;
+  logic                        axi4_mgr_aw_lock_s;
+  logic [               4-1:0] axi4_mgr_aw_cache_s;
+  logic [               3-1:0] axi4_mgr_aw_prot_s;
+  logic [               4-1:0] axi4_mgr_aw_qos_s;
+  logic [               4-1:0] axi4_mgr_aw_region_s;
+  logic [  AXI_USER_WIDTH-1:0] axi4_mgr_aw_user_s;
+  logic                        axi4_mgr_aw_valid_s;
+  logic                        axi4_mgr_aw_ready_s;
+  // W
+  logic [ AXI4_DATA_WIDTH-1:0] axi4_mgr_w_data_s;
+  logic [       AXI_XSIZE-1:0] axi4_mgr_w_strb_s;
+  logic                        axi4_mgr_w_last_s;
+  logic [  AXI_USER_WIDTH-1:0] axi4_mgr_w_user_s;
+  logic                        axi4_mgr_w_valid_s;
+  logic                        axi4_mgr_w_ready_s;
+  // B
+  logic [    AXI_ID_WIDTH-1:0] axi4_mgr_b_id_s;
+  logic [               2-1:0] axi4_mgr_b_resp_s;
+  logic [  AXI_USER_WIDTH-1:0] axi4_mgr_b_user_s = '0;
+  logic                        axi4_mgr_b_valid_s;
+  logic                        axi4_mgr_b_ready_s;
+  // AR
+  logic [    AXI_ID_WIDTH-1:0] axi4_mgr_ar_id_s;
+  logic [ AXI4_ADDR_WIDTH-1:0] axi4_mgr_ar_addr_s;
+  logic [               8-1:0] axi4_mgr_ar_len_s;
+  logic [               3-1:0] axi4_mgr_ar_size_s;
+  logic [               2-1:0] axi4_mgr_ar_burst_s;
+  logic                        axi4_mgr_ar_lock_s;
+  logic [               4-1:0] axi4_mgr_ar_cache_s;
+  logic [               3-1:0] axi4_mgr_ar_prot_s;
+  logic [               4-1:0] axi4_mgr_ar_region_s;
+  logic [               4-1:0] axi4_mgr_ar_qos_s;
+  logic [  AXI_USER_WIDTH-1:0] axi4_mgr_ar_user_s;
+  logic                        axi4_mgr_ar_valid_s;
+  logic                        axi4_mgr_ar_ready_s;
+  // R
+  logic [    AXI_ID_WIDTH-1:0] axi4_mgr_r_id_s;
+  logic [ AXI4_DATA_WIDTH-1:0] axi4_mgr_r_data_s;
+  logic [               2-1:0] axi4_mgr_r_resp_s;
+  logic                        axi4_mgr_r_last_s;
+  logic [  AXI_USER_WIDTH-1:0] axi4_mgr_r_user_s = '0;
+  logic                        axi4_mgr_r_valid_s;
+  logic                        axi4_mgr_r_ready_s;
+
   // AXI-LITE Signals
   // AW                                                                  
   logic [ AXIL_ADDR_WIDTH-1:0] axil_sub_aw_addr_s;
@@ -90,26 +142,8 @@ module tb_axi_lite_registers #(
   logic                        axil_sub_r_valid_s;
   logic                        axil_sub_r_ready_s;
 
-  logic                        enable_s;
-  logic                        rd_fifo_pop_s;
-  logic                        wr_fifo_push_s;
-  logic [               2-1:0] req_s;
-  logic [ AXIL_ADDR_WIDTH-1:0] axi_wr_addr_s;
-  logic [ AXIL_ADDR_WIDTH-1:0] axi_rd_addr_s;
-  logic [  DataCountWidth-1:0] rd_data_count_s;
-  logic [ AXI4_DATA_WIDTH-1:0] wr_fifo_data_s;
-  logic [ AXI4_DATA_WIDTH-1:0] rd_fifo_data_s;
-  logic [  DataCountWidth-1:0] wr_fifo_usage_s;
-  logic [  DataCountWidth-1:0] rd_fifo_usage_s;
-  logic                        wr_fifo_full_s;  
-  logic                        rd_fifo_full_s;
-  logic                        wr_fifo_empty_s; 
-  logic                        rd_fifo_empty_s;
-  logic [               2-1:0] rsp_s;     // bit 1: rd, bit 0: wr
-  logic [               2-1:0] wr_err_s;  // bresp
-  logic [               2-1:0] rd_err_s;  // rresp
-
   logic [ AXIL_DATA_WIDTH-1:0] read_data_s;
+  logic [ AXI4_DATA_WIDTH-1:0] write_data_s [$];
 
   logic [ AXIL_ADDR_WIDTH-1:0] ENABLE             = 'h00;
   logic [ AXIL_ADDR_WIDTH-1:0] REQUEST            = 'h04;
@@ -152,56 +186,123 @@ module tb_axi_lite_registers #(
 
   /* COMPONENT DECLARATION ****************************************************/
 
-  axi_lite_registers #(
-    .AXI4_ADDR_WIDTH  ( AXI4_ADDR_WIDTH  ),           
-    .AXI4_DATA_WIDTH  ( AXI4_DATA_WIDTH  ),           
-    .AXIL_ADDR_WIDTH  ( AXIL_ADDR_WIDTH  ),           
-    .AXIL_DATA_WIDTH  ( AXIL_DATA_WIDTH  ),           
-    .AXI_ID_WIDTH     ( AXI_ID_WIDTH     ),        
-    .AXI_USER_WIDTH   ( AXI_USER_WIDTH   ),          
-    .BASE_ADDR        ( 'h0              ),     
-    .DATA_COUNT_WIDTH ( DataCountWidth   )           
+  fpga_axi4_mgr_wrapper #(
+    .AXI4_ADDR_WIDTH  ( AXI4_ADDR_WIDTH  ),
+    .AXI4_DATA_WIDTH  ( AXI4_DATA_WIDTH  ),
+    .AXIL_ADDR_WIDTH  ( AXIL_ADDR_WIDTH  ),
+    .AXIL_DATA_WIDTH  ( AXIL_DATA_WIDTH  ),
+    .AXI_ID_WIDTH     ( AXI_ID_WIDTH     ),
+    .AXI_USER_WIDTH   ( AXI_USER_WIDTH   ),
+    .FIFO_DEPTH       ( FIFO_DEPTH       ),
+    .AXI_XSIZE        ( AXI_XSIZE        ),
+    .REG_BASE_ADDR    ( REG_BASE_ADDR    ),
+    .DATA_COUNT_WIDTH ( DATA_COUNT_WIDTH )
   ) i_dut (
-    .clk_i           ( clk                 ),       
-    .rstn_i          ( rstn                ),        
-    .aw_addr_i       ( axil_sub_aw_addr_s  ),           
-    .aw_prot_i       ( axil_sub_aw_prot_s  ),           
-    .aw_valid_i      ( axil_sub_aw_valid_s ),            
-    .aw_ready_o      ( axil_sub_aw_ready_s ),            
-    .w_data_i        ( axil_sub_w_data_s   ),          
-    .w_strb_i        ( axil_sub_w_strb_s   ),          
-    .w_valid_i       ( axil_sub_w_valid_s  ),           
-    .w_ready_o       ( axil_sub_w_ready_s  ),           
-    .b_resp_o        ( axil_sub_b_resp_s   ),          
-    .b_valid_o       ( axil_sub_b_valid_s  ),           
-    .b_ready_i       ( axil_sub_b_ready_s  ),           
-    .ar_addr_i       ( axil_sub_ar_addr_s  ),           
-    .ar_prot_i       ( axil_sub_ar_prot_s  ),           
-    .ar_valid_i      ( axil_sub_ar_valid_s ),            
-    .ar_ready_o      ( axil_sub_ar_ready_s ),            
-    .r_data_o        ( axil_sub_r_data_s   ),          
-    .r_resp_o        ( axil_sub_r_resp_s   ),          
-    .r_valid_o       ( axil_sub_r_valid_s  ),           
-    .r_ready_i       ( axil_sub_r_ready_s  ),
-    .enable_o        ( enable_s            ),           
-    .rd_fifo_pop_o   ( rd_fifo_pop_s       ),               
-    .wr_fifo_push_o  ( wr_fifo_push_s      ),                
-    .req_o           ( req_s               ),       
-    .axi_wr_addr_o   ( axi_wr_addr_s       ),               
-    .axi_rd_addr_o   ( axi_rd_addr_s       ),               
-    .rd_data_count_o ( rd_data_count_s     ),                 
-    .wr_fifo_data_o  ( wr_fifo_data_s      ),                
-    .rd_fifo_data_i  ( rd_fifo_data_s      ),                
-    .wr_fifo_usage_i ( wr_fifo_usage_s     ),                 
-    .rd_fifo_usage_i ( rd_fifo_usage_s     ),                 
-    .wr_fifo_full_i  ( wr_fifo_full_s      ),                
-    .rd_fifo_full_i  ( rd_fifo_full_s      ),                
-    .wr_fifo_empty_i ( wr_fifo_empty_s     ),                 
-    .rd_fifo_empty_i ( rd_fifo_empty_s     ),                 
-    .rsp_i           ( rsp_s               ),       
-    .wr_err_i        ( wr_err_s            ),          
-    .rd_err_i        ( rd_err_s            )          
+    .clk_i                ( clk                  ),
+    .rstn_i               ( rstn                 ),
+    // AXI4
+    .axi4_mgr_aw_id_o     ( axi4_mgr_aw_id_s     ),
+    .axi4_mgr_aw_addr_o   ( axi4_mgr_aw_addr_s   ),
+    .axi4_mgr_aw_len_o    ( axi4_mgr_aw_len_s    ),
+    .axi4_mgr_aw_size_o   ( axi4_mgr_aw_size_s   ),
+    .axi4_mgr_aw_burst_o  ( axi4_mgr_aw_burst_s  ),
+    .axi4_mgr_aw_lock_o   ( axi4_mgr_aw_lock_s   ),
+    .axi4_mgr_aw_cache_o  ( axi4_mgr_aw_cache_s  ),
+    .axi4_mgr_aw_prot_o   ( axi4_mgr_aw_prot_s   ),
+    .axi4_mgr_aw_qos_o    ( axi4_mgr_aw_qos_s    ),
+    .axi4_mgr_aw_region_o ( axi4_mgr_aw_region_s ),
+    .axi4_mgr_aw_user_o   ( axi4_mgr_aw_user_s   ),
+    .axi4_mgr_aw_valid_o  ( axi4_mgr_aw_valid_s  ),
+    .axi4_mgr_aw_ready_i  ( axi4_mgr_aw_ready_s  ),
+    .axi4_mgr_w_data_o    ( axi4_mgr_w_data_s    ),
+    .axi4_mgr_w_strb_o    ( axi4_mgr_w_strb_s    ),
+    .axi4_mgr_w_last_o    ( axi4_mgr_w_last_s    ),
+    .axi4_mgr_w_user_o    ( axi4_mgr_w_user_s    ),
+    .axi4_mgr_w_valid_o   ( axi4_mgr_w_valid_s   ),
+    .axi4_mgr_w_ready_i   ( axi4_mgr_w_ready_s   ),
+    .axi4_mgr_b_id_i      ( axi4_mgr_b_id_s      ),
+    .axi4_mgr_b_resp_i    ( axi4_mgr_b_resp_s    ),
+    .axi4_mgr_b_user_i    ( axi4_mgr_b_user_s    ),
+    .axi4_mgr_b_valid_i   ( axi4_mgr_b_valid_s   ),
+    .axi4_mgr_b_ready_o   ( axi4_mgr_b_ready_s   ),
+    .axi4_mgr_ar_id_o     ( axi4_mgr_ar_id_s     ),
+    .axi4_mgr_ar_addr_o   ( axi4_mgr_ar_addr_s   ),
+    .axi4_mgr_ar_len_o    ( axi4_mgr_ar_len_s    ),
+    .axi4_mgr_ar_size_o   ( axi4_mgr_ar_size_s   ),
+    .axi4_mgr_ar_burst_o  ( axi4_mgr_ar_burst_s  ),
+    .axi4_mgr_ar_lock_o   ( axi4_mgr_ar_lock_s   ),
+    .axi4_mgr_ar_cache_o  ( axi4_mgr_ar_cache_s  ),
+    .axi4_mgr_ar_prot_o   ( axi4_mgr_ar_prot_s   ),
+    .axi4_mgr_ar_region_o ( axi4_mgr_ar_region_s ),
+    .axi4_mgr_ar_qos_o    ( axi4_mgr_ar_qos_s    ),
+    .axi4_mgr_ar_user_o   ( axi4_mgr_ar_user_s   ),
+    .axi4_mgr_ar_valid_o  ( axi4_mgr_ar_valid_s  ),
+    .axi4_mgr_ar_ready_i  ( axi4_mgr_ar_ready_s  ),
+    .axi4_mgr_r_id_i      ( axi4_mgr_r_id_s      ),
+    .axi4_mgr_r_data_i    ( axi4_mgr_r_data_s    ),
+    .axi4_mgr_r_resp_i    ( axi4_mgr_r_resp_s    ),
+    .axi4_mgr_r_last_i    ( axi4_mgr_r_last_s    ),
+    .axi4_mgr_r_user_i    ( axi4_mgr_r_user_s    ),
+    .axi4_mgr_r_valid_i   ( axi4_mgr_r_valid_s   ),
+    .axi4_mgr_r_ready_o   ( axi4_mgr_r_ready_s   ),
+    // AXI-LITE
+    .axil_sub_aw_addr_i   ( axil_sub_aw_addr_s   ),
+    .axil_sub_aw_prot_i   ( axil_sub_aw_prot_s   ),
+    .axil_sub_aw_valid_i  ( axil_sub_aw_valid_s  ),
+    .axil_sub_aw_ready_o  ( axil_sub_aw_ready_s  ),
+    .axil_sub_w_data_i    ( axil_sub_w_data_s    ),
+    .axil_sub_w_strb_i    ( axil_sub_w_strb_s    ),
+    .axil_sub_w_valid_i   ( axil_sub_w_valid_s   ),
+    .axil_sub_w_ready_o   ( axil_sub_w_ready_s   ),
+    .axil_sub_b_resp_o    ( axil_sub_b_resp_s    ),
+    .axil_sub_b_valid_o   ( axil_sub_b_valid_s   ),
+    .axil_sub_b_ready_i   ( axil_sub_b_ready_s   ),
+    .axil_sub_ar_addr_i   ( axil_sub_ar_addr_s   ),
+    .axil_sub_ar_prot_i   ( axil_sub_ar_prot_s   ),
+    .axil_sub_ar_valid_i  ( axil_sub_ar_valid_s  ),
+    .axil_sub_ar_ready_o  ( axil_sub_ar_ready_s  ),
+    .axil_sub_r_data_o    ( axil_sub_r_data_s    ),
+    .axil_sub_r_resp_o    ( axil_sub_r_resp_s    ),
+    .axil_sub_r_valid_o   ( axil_sub_r_valid_s   ),
+    .axil_sub_r_ready_i   ( axil_sub_r_ready_s   ) 
   );
+
+  // AXI4 BRAM 64b wide, 512 deep
+  blk_mem_gen_0 i_test_axi_mem (
+    .s_aclk        ( clk             ), // input  wire s_aclk
+    .s_aresetn     ( rstn            ), // input  wire s_aresetn
+    .s_axi_awid    ( axi4_mgr_aw_id_s    ), // input  wire [3 : 0] s_axi_awid
+    .s_axi_awaddr  ( axi4_mgr_aw_addr_s  ), // input  wire [31 : 0] s_axi_awaddr
+    .s_axi_awlen   ( axi4_mgr_aw_len_s   ), // input  wire [7 : 0] s_axi_awlen
+    .s_axi_awsize  ( axi4_mgr_aw_size_s  ), // input  wire [2 : 0] s_axi_awsize
+    .s_axi_awburst ( axi4_mgr_aw_burst_s ), // input  wire [1 : 0] s_axi_awburst
+    .s_axi_awvalid ( axi4_mgr_aw_valid_s ), // input  wire s_axi_awvalid
+    .s_axi_awready ( axi4_mgr_aw_ready_s ), // output wire s_axi_awready
+    .s_axi_wdata   ( axi4_mgr_w_data_s   ), // input  wire [63 : 0] s_axi_wdata
+    .s_axi_wstrb   ( axi4_mgr_w_strb_s   ), // input  wire [7 : 0] s_axi_wstrb
+    .s_axi_wlast   ( axi4_mgr_w_last_s   ), // input  wire s_axi_wlast
+    .s_axi_wvalid  ( axi4_mgr_w_valid_s  ), // input  wire s_axi_wvalid
+    .s_axi_wready  ( axi4_mgr_w_ready_s  ), // output wire s_axi_wready
+    .s_axi_bid     ( axi4_mgr_b_id_s     ), // output wire [3 : 0] s_axi_bid
+    .s_axi_bresp   ( axi4_mgr_b_resp_s   ), // output wire [1 : 0] s_axi_bresp
+    .s_axi_bvalid  ( axi4_mgr_b_valid_s  ), // output wire s_axi_bvalid
+    .s_axi_bready  ( axi4_mgr_b_ready_s  ), // input  wire s_axi_bready
+    .s_axi_arid    ( axi4_mgr_ar_id_s    ), // input  wire [3 : 0] s_axi_arid
+    .s_axi_araddr  ( axi4_mgr_ar_addr_s  ), // input  wire [31 : 0] s_axi_araddr
+    .s_axi_arlen   ( axi4_mgr_ar_len_s   ), // input  wire [7 : 0] s_axi_arlen
+    .s_axi_arsize  ( axi4_mgr_ar_size_s  ), // input  wire [2 : 0] s_axi_arsize
+    .s_axi_arburst ( axi4_mgr_ar_burst_s ), // input  wire [1 : 0] s_axi_arburst
+    .s_axi_arvalid ( axi4_mgr_ar_valid_s ), // input  wire s_axi_arvalid
+    .s_axi_arready ( axi4_mgr_ar_ready_s ), // output wire s_axi_arready
+    .s_axi_rid     ( axi4_mgr_r_id_s     ), // output wire [3 : 0] s_axi_rid
+    .s_axi_rdata   ( axi4_mgr_r_data_s   ), // output wire [63 : 0] s_axi_rdata
+    .s_axi_rresp   ( axi4_mgr_r_resp_s   ), // output wire [1 : 0] s_axi_rresp
+    .s_axi_rlast   ( axi4_mgr_r_last_s   ), // output wire s_axi_rlast
+    .s_axi_rvalid  ( axi4_mgr_r_valid_s  ), // output wire s_axi_rvalid
+    .s_axi_rready  ( axi4_mgr_r_ready_s  )  // input  wire s_axi_rready
+  );
+
+
 
 /* TEST LOGIC *****************************************************************/
 
@@ -217,19 +318,29 @@ module tb_axi_lite_registers #(
   initial begin : tb_logic /***************************************************/
 
     $timeformat(-9,0,"ns");
+
+    write_data_s = {
+      64'hDEAD_BEEF_DA7A_0000,
+      64'hABBA_DABA_DA7A_0001,
+      64'hDEAD_BEEF_DA7A_0002,
+      64'hABBA_DABA_DA7A_0003,
+      64'hDEAD_BEEF_DA7A_0004,
+      64'hABBA_DABA_DA7A_0005,
+      64'hDEAD_BEEF_DA7A_0006,
+      64'hABBA_DABA_DA7A_0007,
+      64'hDEAD_BEEF_DA7A_0008,
+      64'hABBA_DABA_DA7A_0009,
+      64'hDEAD_BEEF_DA7A_000A,
+      64'hABBA_DABA_DA7A_000B,
+      64'hDEAD_BEEF_DA7A_000C,
+      64'hABBA_DABA_DA7A_000D,
+      64'hDEAD_BEEF_DA7A_000E,
+      64'hABBA_DABA_DA7A_000F
+    };
     
-    rstn                = '0;
-    
-    rd_fifo_data_s      = '0;                 
-    wr_fifo_usage_s     = '0;                  
-    rd_fifo_usage_s     = '0;                  
-    wr_fifo_full_s      = '0;                 
-    rd_fifo_full_s      = '0;                 
-    wr_fifo_empty_s     = '0;                  
-    rd_fifo_empty_s     = '0;                  
-    rsp_s               = '0;        
-    wr_err_s            = '0;           
-    rd_err_s            = '0; 
+    rstn = '0;
+
+    read_data_s = '0;
 
     axi_write_signals_s.axi_aw_addr_o  = '0;       
     axil_sub_aw_prot_s                 = '0;       
@@ -249,140 +360,59 @@ module tb_axi_lite_registers #(
     write_address( ENABLE, "ENABLE", '1, clk, axi_write_signals_s);    
     
     // test wr fifo status
+    read_address( RD_FIFO_STATUS, "RD_FIFO_STATUS", read_data_s, clk, axi_read_signals_s);
     read_address( WR_FIFO_STATUS, "WR_FIFO_STATUS", read_data_s, clk, axi_read_signals_s);
-    
-    $display("\n%10t: Setting wr_fifo_full_s...", $time);
-    wr_fifo_full_s = 1'b1;
-
-    read_address( WR_FIFO_STATUS, "WR_FIFO_STATUS", read_data_s, clk, axi_read_signals_s);
-    
-    $display("\n%10t: Setting wr_fifo_empty_s...", $time);
-    
-    wr_fifo_empty_s = 1'b1;
-    
-    read_address( WR_FIFO_STATUS, "WR_FIFO_STATUS", read_data_s, clk, axi_read_signals_s);
-    
-    $display("\n%10t: Clearing wr_fifo_full_s and wr_fifo_empty_s...", $time);
-    wr_fifo_full_s  = '0;
-    wr_fifo_empty_s = '0;
     
     // test wr fifo usage
-    read_address( WR_FIFO_USAGE, "WR_FIFO_USAGE", read_data_s, clk, axi_read_signals_s);
-    
-    $display("\n%10t: Setting wr_fifo_usage_s to all ones...", $time);
-    wr_fifo_usage_s = '1;
-    
-    read_address( WR_FIFO_USAGE, "WR_FIFO_USAGE", read_data_s, clk, axi_read_signals_s);
-    
-    $display("\n%10t: Clearing wr_fifo_usage_s...", $time);
-    wr_fifo_usage_s = '0;
-    
-    read_address( WR_FIFO_USAGE, "WR_FIFO_USAGE", read_data_s, clk, axi_read_signals_s);
-    
-    // test writing data to FIFO
-    write_address( WR_FIFO_DATA_IN_L, "WR_FIFO_DATA_IN_L", 'hBEEF, clk, axi_write_signals_s );
-    write_address( WR_FIFO_DATA_IN_H, "WR_FIFO_DATA_IN_L", 'hDEAD, clk, axi_write_signals_s );
+    populate_wr_fifo(write_data_s);
 
-    $display("%10t: read value of 0x%0h from wr_fifo_data_s", $time, wr_fifo_data_s);
-
-    repeat (4)
-      write_address( WR_FIFO_PUSH, "WR_FIFO_PUSH", '1, clk, axi_write_signals_s );
+    // set rd and wr address
+    write_address( AXI_WR_ADDR, "AXI_WR_ADDR", '0, clk, axi_write_signals_s);
+    write_address( AXI_RD_ADDR, "AXI_RD_ADDR", '0, clk, axi_write_signals_s);
     
-    // set wr address
-    write_address( AXI_WR_ADDR, "AXI_WR_ADDR", 'hDEADBEEF, clk, axi_write_signals_s);
-    read_address( AXI_WR_ADDR, "AXI_WR_ADDR", read_data_s, clk, axi_read_signals_s);
-    
-    // init xfer
+    // init wr xfer
     write_address( REQUEST, "REQUEST", '1, clk, axi_write_signals_s);
     write_address( REQUEST, "REQUEST", '0, clk, axi_write_signals_s);
-   
-    // set rsp for a cycle
-    @(posedge clk);
-    $display("\n%10t: Setting rsp to all ones...", $time);
-    rsp_s = '1;
-    @(posedge clk);
-    @(negedge clk); 
-    $display("%10t: Clearing rsp...expecting bit1 and bit2 to latch...", $time);
-    rsp_s = '0;
-    @(negedge clk); 
-    
-    read_address( RESPONSE, "RESPONSE", read_data_s, clk, axi_read_signals_s);
-    write_address( RESPONSE, "RESPONSE", 'h1, clk, axi_write_signals_s);
-    read_address( RESPONSE, "RESPONSE", read_data_s, clk, axi_read_signals_s);
 
-    // test rd fifo status
-    read_address( RD_FIFO_STATUS, "RD_FIFO_STATUS", read_data_s, clk, axi_read_signals_s);
-    
-    $display("\n%10t: Setting rd_fifo_full_s...", $time);
-    rd_fifo_full_s = 1'b1;
+    // loop until writes are completed
+    read_data_s = '0;
+    while(read_data_s[1] != 1'b1) 
+      read_address( RESPONSE, "RESPONSE", read_data_s, clk, axi_read_signals_s);
 
-    read_address( RD_FIFO_STATUS, "RD_FIFO_STATUS", read_data_s, clk, axi_read_signals_s);
+    // clear response
+    write_address( RESPONSE, "RESPONSE", 'b1, clk, axi_write_signals_s);
 
-    $display("\n%10t: Setting rd_fifo_empty_s...", $time);
-    
-    rd_fifo_empty_s = 1'b1;
-    
-    read_address( RD_FIFO_STATUS, "RD_FIFO_STATUS", read_data_s, clk, axi_read_signals_s);
-    
-    $display("\n%10t: Clearing rd_fifo_full_s and rd_fifo_empty_s...", $time);
-    rd_fifo_full_s  = '0;
-    rd_fifo_empty_s = '0;
+    // set number of AXI reads
+    write_address( AXI_RD_COUNT, "AXI_RD_COUNT", 'd7, clk, axi_write_signals_s);
+
+    // init rd xfer
+    write_address( REQUEST, "REQUEST", 'b10, clk, axi_write_signals_s);
+    write_address( REQUEST, "REQUEST", '0, clk, axi_write_signals_s);
+
+    // loop until writes are completed
+    read_data_s = '0;
+    while(read_data_s[2] != 1'b1) 
+      read_address( RESPONSE, "RESPONSE", read_data_s, clk, axi_read_signals_s);
+
+    // clear response
+    write_address( RESPONSE, "RESPONSE", 'b1, clk, axi_write_signals_s);
 
     // test rd fifo usage
     read_address( RD_FIFO_USAGE, "RD_FIFO_USAGE", read_data_s, clk, axi_read_signals_s);
-    
-    $display("\n%10t: Setting rd_fifo_usage_s to all ones...", $time);
-    rd_fifo_usage_s = '1;
-    
-    read_address( RD_FIFO_USAGE, "RD_FIFO_USAGE", read_data_s, clk, axi_read_signals_s);
-    
-    $display("\n%10t: Clearing rd_fifo_usage_s...", $time);
-    rd_fifo_usage_s = '0;
-
-    read_address( RD_FIFO_USAGE, "RD_FIFO_USAGE", read_data_s, clk, axi_read_signals_s);
 
     // test reading data from FIFO
-    read_address( RD_FIFO_DATA_OUT_H, "RD_FIFO_DATA_OUT_H", read_data_s, clk, axi_read_signals_s);
-    read_address( RD_FIFO_DATA_OUT_L, "RD_FIFO_DATA_OUT_L", read_data_s, clk, axi_read_signals_s);
-    
-    rd_fifo_data_s = 'hDEADBEEFABBADABA;
-    $display("\n%10t: Setting rd_fifo_data_s to pattern: 0x%0h", $time, rd_fifo_data_s);
-
-    read_address( RD_FIFO_DATA_OUT_H, "RD_FIFO_DATA_OUT_H", read_data_s, clk, axi_read_signals_s);
-    read_address( RD_FIFO_DATA_OUT_L, "RD_FIFO_DATA_OUT_L", read_data_s, clk, axi_read_signals_s);
-    
-    $display("\n%10t: clearing rd_fifo_data_s...", $time);
-    rd_fifo_data_s = '0;
-
-    repeat (4)
+    repeat (7) begin
+      read_address( RD_FIFO_DATA_OUT_H, "RD_FIFO_DATA_OUT_H", read_data_s, clk, axi_read_signals_s);
+      read_address( RD_FIFO_DATA_OUT_L, "RD_FIFO_DATA_OUT_L", read_data_s, clk, axi_read_signals_s);
       write_address( RD_FIFO_POP, "RD_FIFO_POP", '1, clk, axi_write_signals_s );
+    end
 
-    // set rd address
-    write_address( AXI_RD_ADDR, "AXI_RD_ADDR", 'hDEADBEEF, clk, axi_write_signals_s);
-    read_address( AXI_RD_ADDR, "AXI_RD_ADDR", read_data_s, clk, axi_read_signals_s);
-
-    // test error generation
-    read_address( WR_ERR, "WR_ERR", read_data_s, clk, axi_read_signals_s);
-    read_address( RD_ERR, "RD_ERR", read_data_s, clk, axi_read_signals_s);
+    read_address( RD_FIFO_USAGE, "RD_FIFO_USAGE", read_data_s, clk, axi_read_signals_s);
     
-    $display("\n%10t: Setting rd_err and wr_err to all 1's ...", $time);
-    wr_err_s = '1;
-    rd_err_s = '1;
-
-    read_address( WR_ERR, "WR_ERR", read_data_s, clk, axi_read_signals_s);
-    read_address( RD_ERR, "RD_ERR", read_data_s, clk, axi_read_signals_s);
-
-    $display("\n%10t: Clearing rd_err and wr_err...", $time);
-    wr_err_s = '0;
-    rd_err_s = '0;
-
-    read_address( WR_ERR, "WR_ERR", read_data_s, clk, axi_read_signals_s);
-    read_address( RD_ERR, "RD_ERR", read_data_s, clk, axi_read_signals_s);
-
     // disable subsystem
     write_address( ENABLE, "ENABLE", '0, clk, axi_write_signals_s);
     
-    repeat (10)
+    repeat (100)
       @(posedge clk);
 
     $finish;     
@@ -391,6 +421,13 @@ module tb_axi_lite_registers #(
 
 /* SUBROUTINES ****************************************************************/
 
+  /* 
+  Task to write data to register address and print result. 
+  The data to be written is passed to the data parameter. The address to write
+  should be passed to the addr parameter.
+  The reg_id parameter is merely a label to be used within the printed messages 
+  and therefore has no functional impact.
+  */
   task automatic write_address(
     input logic [ AXIL_ADDR_WIDTH-1:0] addr,
     input string                       reg_id,
@@ -457,7 +494,13 @@ module tb_axi_lite_registers #(
              $time, data, addr, addr, reg_id);
   
   endtask
-
+  /* 
+  Task to read register address and print result. Data is stored within the argument
+  passed as the data parameter. The address to write
+  should be passed to the addr parameter.
+  The reg_id parameter is merely a label to be used within the printed messages 
+  and therefore has no functional impact.
+  */
   task automatic read_address(
     input  logic [ AXIL_ADDR_WIDTH-1:0] addr,
     input  string                       reg_id,
@@ -506,6 +549,33 @@ module tb_axi_lite_registers #(
     $display("%10t: AXI-Lite read  of DATA: 0x%8h from ADDR: %2d (0x%2h) '%s' complete.", 
              $time, data, addr, addr, reg_id);
   
+  endtask
+
+  /* 
+    Task to populate write FIFO using a pre-populated queue. Currently, a limitation
+    exists which means that the width of each queue element must be 2x the width of the 
+    FIFO entries i.e. (AXI4_DATA_WIDTH must be 2x the size of AXI4_DATA_WIDTH).
+    Total contents of queue passed as data_i parameter will be written to the FIFO
+    and the usage will be reported before and after reading for information.
+  */
+  task automatic populate_wr_fifo(
+    input logic [AXI4_DATA_WIDTH-1:0] data_i [$]    
+  );
+
+    automatic logic [AXI4_DATA_WIDTH-1:0] tmp_wr_data;
+    automatic logic [AXIL_DATA_WIDTH-1:0] tmp_rd_data;
+    
+    read_address( WR_FIFO_USAGE, "WR_FIFO_USAGE", tmp_rd_data, clk, axi_read_signals_s);
+
+    repeat (data_i.size()) begin
+      tmp_wr_data = data_i.pop_front();
+      write_address( WR_FIFO_DATA_IN_L, "WR_FIFO_DATA_IN_L", tmp_wr_data[AXIL_DATA_WIDTH-1:0], clk, axi_write_signals_s );
+      write_address( WR_FIFO_DATA_IN_H, "WR_FIFO_DATA_IN_H", tmp_wr_data[AXI4_DATA_WIDTH-1:AXIL_DATA_WIDTH], clk, axi_write_signals_s );
+      write_address( WR_FIFO_PUSH, "WR_FIFO_PUSH", '1, clk, axi_write_signals_s );    
+    end
+
+    read_address( WR_FIFO_USAGE, "WR_FIFO_USAGE", tmp_rd_data, clk, axi_read_signals_s);
+
   endtask
 
 endmodule // tb_axi_lite_registers

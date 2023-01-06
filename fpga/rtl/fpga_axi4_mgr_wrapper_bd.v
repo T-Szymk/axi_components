@@ -196,6 +196,7 @@ module fpga_axi4_mgr_wrapper_bd #(
   ) i_fpga_axi4_mgr_wrapper (
     .clk_i                ( clk_i                ),
     .rstn_i               ( rstn_i               ),
+    // AXI4
     .axi4_mgr_aw_id_o     ( axi4_mgr_aw_id_o     ),
     .axi4_mgr_aw_addr_o   ( axi4_mgr_aw_addr_o   ),
     .axi4_mgr_aw_len_o    ( axi4_mgr_aw_len_o    ),
@@ -240,6 +241,7 @@ module fpga_axi4_mgr_wrapper_bd #(
     .axi4_mgr_r_user_i    ( axi4_mgr_r_user_i    ),
     .axi4_mgr_r_valid_i   ( axi4_mgr_r_valid_i   ),
     .axi4_mgr_r_ready_o   ( axi4_mgr_r_ready_o   ),
+    // AXI-LITE
     .axil_sub_aw_addr_i   ( axil_sub_aw_addr_i   ),
     .axil_sub_aw_prot_i   ( axil_sub_aw_prot_i   ),
     .axil_sub_aw_valid_i  ( axil_sub_aw_valid_i  ),
