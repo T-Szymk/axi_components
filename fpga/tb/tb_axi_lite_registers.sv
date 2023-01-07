@@ -27,10 +27,9 @@ module tb_axi_lite_registers #(
   parameter unsigned AXI_ID_WIDTH     =    4,
   parameter unsigned AXI_USER_WIDTH   =    5,
   parameter unsigned FIFO_DEPTH       = 1024,
-  parameter integer AXI_XSIZE         = (AXI4_DATA_WIDTH / 8),
-  parameter integer REG_BASE_ADDR     =  'h0,
-  parameter integer DATA_COUNT_WIDTH  =    8,
-  parameter unsigned SIM_TIME         =    1ms
+  parameter integer  AXI_XSIZE         = (AXI4_DATA_WIDTH / 8),
+  parameter integer  REG_BASE_ADDR     =  'h0,
+  parameter integer  DATA_COUNT_WIDTH  =    8
 );
   
   timeunit 1ns/1ps;
@@ -66,55 +65,6 @@ module tb_axi_lite_registers #(
   axi_read_t  axi_read_signals_s;
 
   logic clk, rstn;
-
-  logic [    AXI_ID_WIDTH-1:0] axi4_mgr_aw_id_s;
-  logic [ AXI4_ADDR_WIDTH-1:0] axi4_mgr_aw_addr_s;
-  logic [               8-1:0] axi4_mgr_aw_len_s;
-  logic [               3-1:0] axi4_mgr_aw_size_s;
-  logic [               2-1:0] axi4_mgr_aw_burst_s;
-  logic                        axi4_mgr_aw_lock_s;
-  logic [               4-1:0] axi4_mgr_aw_cache_s;
-  logic [               3-1:0] axi4_mgr_aw_prot_s;
-  logic [               4-1:0] axi4_mgr_aw_qos_s;
-  logic [               4-1:0] axi4_mgr_aw_region_s;
-  logic [  AXI_USER_WIDTH-1:0] axi4_mgr_aw_user_s;
-  logic                        axi4_mgr_aw_valid_s;
-  logic                        axi4_mgr_aw_ready_s;
-  // W
-  logic [ AXI4_DATA_WIDTH-1:0] axi4_mgr_w_data_s;
-  logic [       AXI_XSIZE-1:0] axi4_mgr_w_strb_s;
-  logic                        axi4_mgr_w_last_s;
-  logic [  AXI_USER_WIDTH-1:0] axi4_mgr_w_user_s;
-  logic                        axi4_mgr_w_valid_s;
-  logic                        axi4_mgr_w_ready_s;
-  // B
-  logic [    AXI_ID_WIDTH-1:0] axi4_mgr_b_id_s;
-  logic [               2-1:0] axi4_mgr_b_resp_s;
-  logic [  AXI_USER_WIDTH-1:0] axi4_mgr_b_user_s = '0;
-  logic                        axi4_mgr_b_valid_s;
-  logic                        axi4_mgr_b_ready_s;
-  // AR
-  logic [    AXI_ID_WIDTH-1:0] axi4_mgr_ar_id_s;
-  logic [ AXI4_ADDR_WIDTH-1:0] axi4_mgr_ar_addr_s;
-  logic [               8-1:0] axi4_mgr_ar_len_s;
-  logic [               3-1:0] axi4_mgr_ar_size_s;
-  logic [               2-1:0] axi4_mgr_ar_burst_s;
-  logic                        axi4_mgr_ar_lock_s;
-  logic [               4-1:0] axi4_mgr_ar_cache_s;
-  logic [               3-1:0] axi4_mgr_ar_prot_s;
-  logic [               4-1:0] axi4_mgr_ar_region_s;
-  logic [               4-1:0] axi4_mgr_ar_qos_s;
-  logic [  AXI_USER_WIDTH-1:0] axi4_mgr_ar_user_s;
-  logic                        axi4_mgr_ar_valid_s;
-  logic                        axi4_mgr_ar_ready_s;
-  // R
-  logic [    AXI_ID_WIDTH-1:0] axi4_mgr_r_id_s;
-  logic [ AXI4_DATA_WIDTH-1:0] axi4_mgr_r_data_s;
-  logic [               2-1:0] axi4_mgr_r_resp_s;
-  logic                        axi4_mgr_r_last_s;
-  logic [  AXI_USER_WIDTH-1:0] axi4_mgr_r_user_s = '0;
-  logic                        axi4_mgr_r_valid_s;
-  logic                        axi4_mgr_r_ready_s;
 
   // AXI-LITE Signals
   // AW                                                                  
@@ -200,51 +150,6 @@ module tb_axi_lite_registers #(
   ) i_dut (
     .clk_i                ( clk                  ),
     .rstn_i               ( rstn                 ),
-    // AXI4
-    .axi4_mgr_aw_id_o     ( axi4_mgr_aw_id_s     ),
-    .axi4_mgr_aw_addr_o   ( axi4_mgr_aw_addr_s   ),
-    .axi4_mgr_aw_len_o    ( axi4_mgr_aw_len_s    ),
-    .axi4_mgr_aw_size_o   ( axi4_mgr_aw_size_s   ),
-    .axi4_mgr_aw_burst_o  ( axi4_mgr_aw_burst_s  ),
-    .axi4_mgr_aw_lock_o   ( axi4_mgr_aw_lock_s   ),
-    .axi4_mgr_aw_cache_o  ( axi4_mgr_aw_cache_s  ),
-    .axi4_mgr_aw_prot_o   ( axi4_mgr_aw_prot_s   ),
-    .axi4_mgr_aw_qos_o    ( axi4_mgr_aw_qos_s    ),
-    .axi4_mgr_aw_region_o ( axi4_mgr_aw_region_s ),
-    .axi4_mgr_aw_user_o   ( axi4_mgr_aw_user_s   ),
-    .axi4_mgr_aw_valid_o  ( axi4_mgr_aw_valid_s  ),
-    .axi4_mgr_aw_ready_i  ( axi4_mgr_aw_ready_s  ),
-    .axi4_mgr_w_data_o    ( axi4_mgr_w_data_s    ),
-    .axi4_mgr_w_strb_o    ( axi4_mgr_w_strb_s    ),
-    .axi4_mgr_w_last_o    ( axi4_mgr_w_last_s    ),
-    .axi4_mgr_w_user_o    ( axi4_mgr_w_user_s    ),
-    .axi4_mgr_w_valid_o   ( axi4_mgr_w_valid_s   ),
-    .axi4_mgr_w_ready_i   ( axi4_mgr_w_ready_s   ),
-    .axi4_mgr_b_id_i      ( axi4_mgr_b_id_s      ),
-    .axi4_mgr_b_resp_i    ( axi4_mgr_b_resp_s    ),
-    .axi4_mgr_b_user_i    ( axi4_mgr_b_user_s    ),
-    .axi4_mgr_b_valid_i   ( axi4_mgr_b_valid_s   ),
-    .axi4_mgr_b_ready_o   ( axi4_mgr_b_ready_s   ),
-    .axi4_mgr_ar_id_o     ( axi4_mgr_ar_id_s     ),
-    .axi4_mgr_ar_addr_o   ( axi4_mgr_ar_addr_s   ),
-    .axi4_mgr_ar_len_o    ( axi4_mgr_ar_len_s    ),
-    .axi4_mgr_ar_size_o   ( axi4_mgr_ar_size_s   ),
-    .axi4_mgr_ar_burst_o  ( axi4_mgr_ar_burst_s  ),
-    .axi4_mgr_ar_lock_o   ( axi4_mgr_ar_lock_s   ),
-    .axi4_mgr_ar_cache_o  ( axi4_mgr_ar_cache_s  ),
-    .axi4_mgr_ar_prot_o   ( axi4_mgr_ar_prot_s   ),
-    .axi4_mgr_ar_region_o ( axi4_mgr_ar_region_s ),
-    .axi4_mgr_ar_qos_o    ( axi4_mgr_ar_qos_s    ),
-    .axi4_mgr_ar_user_o   ( axi4_mgr_ar_user_s   ),
-    .axi4_mgr_ar_valid_o  ( axi4_mgr_ar_valid_s  ),
-    .axi4_mgr_ar_ready_i  ( axi4_mgr_ar_ready_s  ),
-    .axi4_mgr_r_id_i      ( axi4_mgr_r_id_s      ),
-    .axi4_mgr_r_data_i    ( axi4_mgr_r_data_s    ),
-    .axi4_mgr_r_resp_i    ( axi4_mgr_r_resp_s    ),
-    .axi4_mgr_r_last_i    ( axi4_mgr_r_last_s    ),
-    .axi4_mgr_r_user_i    ( axi4_mgr_r_user_s    ),
-    .axi4_mgr_r_valid_i   ( axi4_mgr_r_valid_s   ),
-    .axi4_mgr_r_ready_o   ( axi4_mgr_r_ready_s   ),
     // AXI-LITE
     .axil_sub_aw_addr_i   ( axil_sub_aw_addr_s   ),
     .axil_sub_aw_prot_i   ( axil_sub_aw_prot_s   ),
@@ -266,43 +171,6 @@ module tb_axi_lite_registers #(
     .axil_sub_r_valid_o   ( axil_sub_r_valid_s   ),
     .axil_sub_r_ready_i   ( axil_sub_r_ready_s   ) 
   );
-
-  // AXI4 BRAM 64b wide, 512 deep
-  blk_mem_gen_0 i_test_axi_mem (
-    .s_aclk        ( clk             ), // input  wire s_aclk
-    .s_aresetn     ( rstn            ), // input  wire s_aresetn
-    .s_axi_awid    ( axi4_mgr_aw_id_s    ), // input  wire [3 : 0] s_axi_awid
-    .s_axi_awaddr  ( axi4_mgr_aw_addr_s  ), // input  wire [31 : 0] s_axi_awaddr
-    .s_axi_awlen   ( axi4_mgr_aw_len_s   ), // input  wire [7 : 0] s_axi_awlen
-    .s_axi_awsize  ( axi4_mgr_aw_size_s  ), // input  wire [2 : 0] s_axi_awsize
-    .s_axi_awburst ( axi4_mgr_aw_burst_s ), // input  wire [1 : 0] s_axi_awburst
-    .s_axi_awvalid ( axi4_mgr_aw_valid_s ), // input  wire s_axi_awvalid
-    .s_axi_awready ( axi4_mgr_aw_ready_s ), // output wire s_axi_awready
-    .s_axi_wdata   ( axi4_mgr_w_data_s   ), // input  wire [63 : 0] s_axi_wdata
-    .s_axi_wstrb   ( axi4_mgr_w_strb_s   ), // input  wire [7 : 0] s_axi_wstrb
-    .s_axi_wlast   ( axi4_mgr_w_last_s   ), // input  wire s_axi_wlast
-    .s_axi_wvalid  ( axi4_mgr_w_valid_s  ), // input  wire s_axi_wvalid
-    .s_axi_wready  ( axi4_mgr_w_ready_s  ), // output wire s_axi_wready
-    .s_axi_bid     ( axi4_mgr_b_id_s     ), // output wire [3 : 0] s_axi_bid
-    .s_axi_bresp   ( axi4_mgr_b_resp_s   ), // output wire [1 : 0] s_axi_bresp
-    .s_axi_bvalid  ( axi4_mgr_b_valid_s  ), // output wire s_axi_bvalid
-    .s_axi_bready  ( axi4_mgr_b_ready_s  ), // input  wire s_axi_bready
-    .s_axi_arid    ( axi4_mgr_ar_id_s    ), // input  wire [3 : 0] s_axi_arid
-    .s_axi_araddr  ( axi4_mgr_ar_addr_s  ), // input  wire [31 : 0] s_axi_araddr
-    .s_axi_arlen   ( axi4_mgr_ar_len_s   ), // input  wire [7 : 0] s_axi_arlen
-    .s_axi_arsize  ( axi4_mgr_ar_size_s  ), // input  wire [2 : 0] s_axi_arsize
-    .s_axi_arburst ( axi4_mgr_ar_burst_s ), // input  wire [1 : 0] s_axi_arburst
-    .s_axi_arvalid ( axi4_mgr_ar_valid_s ), // input  wire s_axi_arvalid
-    .s_axi_arready ( axi4_mgr_ar_ready_s ), // output wire s_axi_arready
-    .s_axi_rid     ( axi4_mgr_r_id_s     ), // output wire [3 : 0] s_axi_rid
-    .s_axi_rdata   ( axi4_mgr_r_data_s   ), // output wire [63 : 0] s_axi_rdata
-    .s_axi_rresp   ( axi4_mgr_r_resp_s   ), // output wire [1 : 0] s_axi_rresp
-    .s_axi_rlast   ( axi4_mgr_r_last_s   ), // output wire s_axi_rlast
-    .s_axi_rvalid  ( axi4_mgr_r_valid_s  ), // output wire s_axi_rvalid
-    .s_axi_rready  ( axi4_mgr_r_ready_s  )  // input  wire s_axi_rready
-  );
-
-
 
 /* TEST LOGIC *****************************************************************/
 
@@ -383,7 +251,7 @@ module tb_axi_lite_registers #(
     write_address( RESPONSE, "RESPONSE", 'b1, clk, axi_write_signals_s);
 
     // set number of AXI reads
-    write_address( AXI_RD_COUNT, "AXI_RD_COUNT", 'd7, clk, axi_write_signals_s);
+    write_address( AXI_RD_COUNT, "AXI_RD_COUNT", write_data_s.size(), clk, axi_write_signals_s);
 
     // init rd xfer
     write_address( REQUEST, "REQUEST", 'b10, clk, axi_write_signals_s);
@@ -401,7 +269,7 @@ module tb_axi_lite_registers #(
     read_address( RD_FIFO_USAGE, "RD_FIFO_USAGE", read_data_s, clk, axi_read_signals_s);
 
     // test reading data from FIFO
-    repeat (7) begin
+    repeat (write_data_s.size()) begin
       read_address( RD_FIFO_DATA_OUT_H, "RD_FIFO_DATA_OUT_H", read_data_s, clk, axi_read_signals_s);
       read_address( RD_FIFO_DATA_OUT_L, "RD_FIFO_DATA_OUT_L", read_data_s, clk, axi_read_signals_s);
       write_address( RD_FIFO_POP, "RD_FIFO_POP", '1, clk, axi_write_signals_s );

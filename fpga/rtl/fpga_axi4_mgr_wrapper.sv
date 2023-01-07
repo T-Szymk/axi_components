@@ -22,7 +22,7 @@ module fpga_axi4_mgr_wrapper #(
   parameter unsigned AXI4_DATA_WIDTH   =   64,
   parameter unsigned AXIL_ADDR_WIDTH   =   32,
   parameter unsigned AXIL_DATA_WIDTH   =   32,
-  parameter unsigned AXI_ID_WIDTH      =    3,
+  parameter unsigned AXI_ID_WIDTH      =    4,
   parameter unsigned AXI_USER_WIDTH    =    5,
   parameter unsigned FIFO_DEPTH        = 1024,
   parameter unsigned AXI_XSIZE         = (AXI4_DATA_WIDTH / 8),
@@ -34,56 +34,6 @@ module fpga_axi4_mgr_wrapper #(
 ) (
   input  logic                        clk_i,
   input  logic                        rstn_i,
-  // AXI4
-  // AW
-  output logic [    AXI_ID_WIDTH-1:0] axi4_mgr_aw_id_o,
-  output logic [ AXI4_ADDR_WIDTH-1:0] axi4_mgr_aw_addr_o,
-  output logic [               8-1:0] axi4_mgr_aw_len_o,
-  output logic [               3-1:0] axi4_mgr_aw_size_o,
-  output logic [               2-1:0] axi4_mgr_aw_burst_o,
-  output logic                        axi4_mgr_aw_lock_o,
-  output logic [               4-1:0] axi4_mgr_aw_cache_o,
-  output logic [               3-1:0] axi4_mgr_aw_prot_o,
-  output logic [               4-1:0] axi4_mgr_aw_qos_o,
-  output logic [               4-1:0] axi4_mgr_aw_region_o,
-  output logic [  AXI_USER_WIDTH-1:0] axi4_mgr_aw_user_o,
-  output logic                        axi4_mgr_aw_valid_o,
-  input  logic                        axi4_mgr_aw_ready_i,
-  // W
-  output logic [ AXI4_DATA_WIDTH-1:0] axi4_mgr_w_data_o,
-  output logic [       AXI_XSIZE-1:0] axi4_mgr_w_strb_o,
-  output logic                        axi4_mgr_w_last_o,
-  output logic [  AXI_USER_WIDTH-1:0] axi4_mgr_w_user_o,
-  output logic                        axi4_mgr_w_valid_o,
-  input  logic                        axi4_mgr_w_ready_i,
-  // B
-  input  logic [    AXI_ID_WIDTH-1:0] axi4_mgr_b_id_i,
-  input  logic [               2-1:0] axi4_mgr_b_resp_i,
-  input  logic [  AXI_USER_WIDTH-1:0] axi4_mgr_b_user_i,
-  input  logic                        axi4_mgr_b_valid_i,
-  output logic                        axi4_mgr_b_ready_o,
-  // AR
-  output logic [    AXI_ID_WIDTH-1:0] axi4_mgr_ar_id_o,
-  output logic [ AXI4_ADDR_WIDTH-1:0] axi4_mgr_ar_addr_o,
-  output logic [               8-1:0] axi4_mgr_ar_len_o,
-  output logic [               3-1:0] axi4_mgr_ar_size_o,
-  output logic [               2-1:0] axi4_mgr_ar_burst_o,
-  output logic                        axi4_mgr_ar_lock_o,
-  output logic [               4-1:0] axi4_mgr_ar_cache_o,
-  output logic [               3-1:0] axi4_mgr_ar_prot_o,
-  output logic [               4-1:0] axi4_mgr_ar_region_o,
-  output logic [               4-1:0] axi4_mgr_ar_qos_o,
-  output logic [  AXI_USER_WIDTH-1:0] axi4_mgr_ar_user_o,
-  output logic                        axi4_mgr_ar_valid_o,
-  input  logic                        axi4_mgr_ar_ready_i,
-  // R
-  input  logic [    AXI_ID_WIDTH-1:0] axi4_mgr_r_id_i,
-  input  logic [ AXI4_DATA_WIDTH-1:0] axi4_mgr_r_data_i,
-  input  logic [               2-1:0] axi4_mgr_r_resp_i,
-  input  logic                        axi4_mgr_r_last_i,
-  input  logic [  AXI_USER_WIDTH-1:0] axi4_mgr_r_user_i,
-  input  logic                        axi4_mgr_r_valid_i,
-  output logic                        axi4_mgr_r_ready_o,
   // AXI-LITE Signals
   // AW                                                                  
   input  logic [ AXIL_ADDR_WIDTH-1:0] axil_sub_aw_addr_i,
@@ -144,64 +94,83 @@ module fpga_axi4_mgr_wrapper #(
   logic [  AXI4_DATA_WIDTH-1:0] axi_wr_data_s;
   logic [  AXI4_DATA_WIDTH-1:0] axi_rd_data_s;
 
+  logic [15 : 0] s_axi_awaddr;
+  logic [ 7 : 0] s_axi_awlen;
+  logic [ 2 : 0] s_axi_awsize;
+  logic [ 1 : 0] s_axi_awburst;
+  logic          s_axi_awlock;
+  logic [ 3 : 0] s_axi_awcache;
+  logic [ 2 : 0] s_axi_awprot;
+  logic          s_axi_awvalid;
+  logic          s_axi_awready;
+  logic [63 : 0] s_axi_wdata;
+  logic [ 7 : 0] s_axi_wstrb;
+  logic          s_axi_wlast;
+  logic          s_axi_wvalid;
+  logic          s_axi_wready;
+  logic [ 1 : 0] s_axi_bresp;
+  logic          s_axi_bvalid;
+  logic          s_axi_bready;
+  logic [15 : 0] s_axi_araddr;
+  logic [ 7 : 0] s_axi_arlen;
+  logic [ 2 : 0] s_axi_arsize;
+  logic [ 1 : 0] s_axi_arburst;
+  logic          s_axi_arlock;
+  logic [ 3 : 0] s_axi_arcache;
+  logic [ 2 : 0] s_axi_arprot;
+  logic          s_axi_arvalid;
+  logic          s_axi_arready;
+  logic [63 : 0] s_axi_rdata;
+  logic [ 1 : 0] s_axi_rresp;
+  logic          s_axi_rlast;
+  logic          s_axi_rvalid;
+  logic          s_axi_rready;
+
   assign wr_fifo_empty_o = wr_fifo_empty_s;      
-  assign rd_fifo_full_o  = rd_fifo_full_s;     
+  assign rd_fifo_full_o  = rd_fifo_full_s;  
   
-  assign axi4_mgr_aw_id_o     = axi_mgr_if.aw_id;
-  assign axi4_mgr_aw_addr_o   = axi_mgr_if.aw_addr;  
-  assign axi4_mgr_aw_len_o    = axi_mgr_if.aw_len; 
-  assign axi4_mgr_aw_size_o   = axi_mgr_if.aw_size;  
-  assign axi4_mgr_aw_burst_o  = axi_mgr_if.aw_burst;   
-  assign axi4_mgr_aw_lock_o   = axi_mgr_if.aw_lock;  
-  assign axi4_mgr_aw_cache_o  = axi_mgr_if.aw_cache;   
-  assign axi4_mgr_aw_prot_o   = axi_mgr_if.aw_prot;  
-  assign axi4_mgr_aw_qos_o    = axi_mgr_if.aw_qos; 
-  assign axi4_mgr_aw_region_o = axi_mgr_if.aw_region;    
-  assign axi4_mgr_aw_atop_o   = axi_mgr_if.aw_atop;  
-  assign axi4_mgr_aw_user_o   = axi_mgr_if.aw_user;  
-  assign axi4_mgr_aw_valid_o  = axi_mgr_if.aw_valid;   
-  assign axi_mgr_if.aw_ready  = axi4_mgr_aw_ready_i;              
-  assign axi4_mgr_w_data_o    = axi_mgr_if.w_data; 
-  assign axi4_mgr_w_strb_o    = axi_mgr_if.w_strb; 
-  assign axi4_mgr_w_last_o    = axi_mgr_if.w_last; 
-  assign axi4_mgr_w_user_o    = axi_mgr_if.w_user; 
-  assign axi4_mgr_w_valid_o   = axi_mgr_if.w_valid;  
-  assign axi_mgr_if.w_ready   = axi4_mgr_w_ready_i;             
-  assign axi_mgr_if.b_id      = axi4_mgr_b_id_i;          
-  assign axi_mgr_if.b_resp    = axi4_mgr_b_resp_i;            
-  assign axi_mgr_if.b_user    = axi4_mgr_b_user_i;            
-  assign axi_mgr_if.b_valid   = axi4_mgr_b_valid_i;             
-  assign axi4_mgr_b_ready_o   = axi_mgr_if.b_ready;  
-  assign axi4_mgr_ar_id_o     = axi_mgr_if.ar_id;
-  assign axi4_mgr_ar_addr_o   = axi_mgr_if.ar_addr;  
-  assign axi4_mgr_ar_len_o    = axi_mgr_if.ar_len; 
-  assign axi4_mgr_ar_size_o   = axi_mgr_if.ar_size;  
-  assign axi4_mgr_ar_burst_o  = axi_mgr_if.ar_burst;   
-  assign axi4_mgr_ar_lock_o   = axi_mgr_if.ar_lock;  
-  assign axi4_mgr_ar_cache_o  = axi_mgr_if.ar_cache;   
-  assign axi4_mgr_ar_prot_o   = axi_mgr_if.ar_prot;  
-  assign axi4_mgr_ar_qos_o    = axi_mgr_if.ar_qos; 
-  assign axi4_mgr_ar_region_o = axi_mgr_if.ar_region;    
-  assign axi4_mgr_ar_user_o   = axi_mgr_if.ar_user;  
-  assign axi4_mgr_ar_valid_o  = axi_mgr_if.ar_valid;   
-  assign axi_mgr_if.ar_ready  = axi4_mgr_ar_ready_i;              
-  assign axi_mgr_if.r_id      = axi4_mgr_r_id_i;          
-  assign axi_mgr_if.r_data    = axi4_mgr_r_data_i;            
-  assign axi_mgr_if.r_resp    = axi4_mgr_r_resp_i;            
-  assign axi_mgr_if.r_last    = axi4_mgr_r_last_i;            
-  assign axi_mgr_if.r_user    = axi4_mgr_r_user_i;            
-  assign axi_mgr_if.r_valid   = axi4_mgr_r_valid_i;             
-  assign axi4_mgr_r_ready_o   = axi_mgr_if.r_ready;  
+  assign s_axi_awaddr        = axi_mgr_if.aw_addr[15:0];     
+  assign s_axi_awlen         = axi_mgr_if.aw_len;    
+  assign s_axi_awsize        = axi_mgr_if.aw_size;     
+  assign s_axi_awburst       = axi_mgr_if.aw_burst;      
+  assign s_axi_awlock        = axi_mgr_if.aw_lock;     
+  assign s_axi_awcache       = axi_mgr_if.aw_cache;      
+  assign s_axi_awprot        = axi_mgr_if.aw_prot;     
+  assign s_axi_awvalid       = axi_mgr_if.aw_valid;      
+  assign axi_mgr_if.aw_ready = s_axi_awready;
 
+  assign s_axi_wdata         = axi_mgr_if.w_data;  
+  assign s_axi_wstrb         = axi_mgr_if.w_strb;  
+  assign s_axi_wlast         = axi_mgr_if.w_last;  
+  assign s_axi_wvalid        = axi_mgr_if.w_valid;   
+  assign axi_mgr_if.w_ready  = s_axi_wready;
 
+  assign axi_mgr_if.b_resp   = s_axi_bresp;
+  assign axi_mgr_if.b_valid  = s_axi_bvalid;
+  assign s_axi_bready        = axi_mgr_if.b_ready;
+
+  assign s_axi_araddr        = axi_mgr_if.ar_addr[15:0];     
+  assign s_axi_arlen         = axi_mgr_if.ar_len;    
+  assign s_axi_arsize        = axi_mgr_if.ar_size;     
+  assign s_axi_arburst       = axi_mgr_if.ar_burst;      
+  assign s_axi_arlock        = axi_mgr_if.ar_lock;     
+  assign s_axi_arcache       = axi_mgr_if.ar_cache;      
+  assign s_axi_arprot        = axi_mgr_if.ar_prot;     
+  assign s_axi_arvalid       = axi_mgr_if.ar_valid;      
+  assign axi_mgr_if.ar_ready = s_axi_arready;
+
+  assign axi_mgr_if.r_data   = s_axi_rdata;
+  assign axi_mgr_if.r_resp   = s_axi_rresp;
+  assign axi_mgr_if.r_last   = s_axi_rlast;
+  assign axi_mgr_if.r_valid  = s_axi_rvalid;
+  assign s_axi_rready        = axi_mgr_if.r_ready;
+  
   /* COMPONENT AND DUT INSTANTIATIONS */
 
   // Write data is read from this FIFO
-  fifo_v3 #(
-    .FALL_THROUGH ( 0                          ),                         
-    .DATA_WIDTH   ( AXI4_DATA_WIDTH             ),                       
-    .DEPTH        ( FIFO_DEPTH                 ),                  
-    .dtype        ( logic [AXI4_DATA_WIDTH-1:0] )
+  fpga_fifo_v3 #(                        
+    .DATA_WIDTH   ( AXI4_DATA_WIDTH ),                       
+    .DEPTH        ( FIFO_DEPTH      )
   ) i_wr_fifo (
     .clk_i      ( clk_i           ),      
     .rst_ni     ( enable_s        ),       
@@ -217,11 +186,9 @@ module fpga_axi4_mgr_wrapper #(
   );
   
   // Read data is written to the following FIFO
-  fifo_v3 #(
-    .FALL_THROUGH ( 0                          ),                         
-    .DATA_WIDTH   ( AXI4_DATA_WIDTH             ),                       
-    .DEPTH        ( FIFO_DEPTH                 ),                  
-    .dtype        ( logic [AXI4_DATA_WIDTH-1:0] )                      
+  fpga_fifo_v3 #(                        
+    .DATA_WIDTH   ( AXI4_DATA_WIDTH ),                       
+    .DEPTH        ( FIFO_DEPTH      )                  
   ) i_rd_fifo (
     .clk_i      ( clk_i           ),                  
     .rst_ni     ( enable_s        ),                   
@@ -235,6 +202,42 @@ module fpga_axi4_mgr_wrapper #(
     .data_o     ( rd_fifo_data_s  ),                   
     .pop_i      ( rd_fifo_pop_s   )     
   );
+
+  axi_bram_ctrl_0 i_axi_bram (
+  .s_axi_aclk    ( clk_i         ), // input  wire s_axi_aclk
+  .s_axi_aresetn ( rstn_i        ), // input  wire s_axi_aresetn
+  .s_axi_awaddr  ( s_axi_awaddr  ), // input  wire [15 : 0] s_axi_awaddr
+  .s_axi_awlen   ( s_axi_awlen   ), // input  wire [7 : 0] s_axi_awlen
+  .s_axi_awsize  ( s_axi_awsize  ), // input  wire [2 : 0] s_axi_awsize
+  .s_axi_awburst ( s_axi_awburst ), // input  wire [1 : 0] s_axi_awburst
+  .s_axi_awlock  ( s_axi_awlock  ), // input  wire s_axi_awlock
+  .s_axi_awcache ( s_axi_awcache ), // input  wire [3 : 0] s_axi_awcache
+  .s_axi_awprot  ( s_axi_awprot  ), // input  wire [2 : 0] s_axi_awprot
+  .s_axi_awvalid ( s_axi_awvalid ), // input  wire s_axi_awvalid
+  .s_axi_awready ( s_axi_awready ), // output wire s_axi_awready
+  .s_axi_wdata   ( s_axi_wdata   ), // input  wire [63 : 0] s_axi_wdata
+  .s_axi_wstrb   ( s_axi_wstrb   ), // input  wire [7 : 0] s_axi_wstrb
+  .s_axi_wlast   ( s_axi_wlast   ), // input  wire s_axi_wlast
+  .s_axi_wvalid  ( s_axi_wvalid  ), // input  wire s_axi_wvalid
+  .s_axi_wready  ( s_axi_wready  ), // output wire s_axi_wready
+  .s_axi_bresp   ( s_axi_bresp   ), // output wire [1 : 0] s_axi_bresp
+  .s_axi_bvalid  ( s_axi_bvalid  ), // output wire s_axi_bvalid
+  .s_axi_bready  ( s_axi_bready  ), // input  wire s_axi_bready
+  .s_axi_araddr  ( s_axi_araddr  ), // input  wire [15 : 0] s_axi_araddr
+  .s_axi_arlen   ( s_axi_arlen   ), // input  wire [7 : 0] s_axi_arlen
+  .s_axi_arsize  ( s_axi_arsize  ), // input  wire [2 : 0] s_axi_arsize
+  .s_axi_arburst ( s_axi_arburst ), // input  wire [1 : 0] s_axi_arburst
+  .s_axi_arlock  ( s_axi_arlock  ), // input  wire s_axi_arlock
+  .s_axi_arcache ( s_axi_arcache ), // input  wire [3 : 0] s_axi_arcache
+  .s_axi_arprot  ( s_axi_arprot  ), // input  wire [2 : 0] s_axi_arprot
+  .s_axi_arvalid ( s_axi_arvalid ), // input  wire s_axi_arvalid
+  .s_axi_arready ( s_axi_arready ), // output wire s_axi_arready
+  .s_axi_rdata   ( s_axi_rdata   ), // output wire [63 : 0] s_axi_rdata
+  .s_axi_rresp   ( s_axi_rresp   ), // output wire [1 : 0] s_axi_rresp
+  .s_axi_rlast   ( s_axi_rlast   ), // output wire s_axi_rlast
+  .s_axi_rvalid  ( s_axi_rvalid  ), // output wire s_axi_rvalid
+  .s_axi_rready  ( s_axi_rready  )  // input  wire s_axi_rready
+);
 
   axi4_mgr #(
     .AXI4_ADDR_WIDTH  ( AXI4_ADDR_WIDTH   ),

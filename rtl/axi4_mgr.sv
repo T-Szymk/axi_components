@@ -47,7 +47,10 @@ module axi4_mgr # (
   input  logic [                2-1:0] req_i,
   input  logic [  AXI4_ADDR_WIDTH-1:0] axi_wr_addr_i,
   input  logic [  AXI4_ADDR_WIDTH-1:0] axi_rd_addr_i,
-  input  logic                         wr_fifo_gnt_i, // currently unused 
+  // wr_fifo_gnt_i currently unused as attempt to read from wr_fifo will not 
+  // occur if usage is empty, therefore making a check of empty unnecessary.
+  // As a result, the wr_fifo grant is always assumed to be active.
+  input  logic                         wr_fifo_gnt_i, 
   input  logic                         rd_fifo_req_i,  
   input  logic [  AXI4_DATA_WIDTH-1:0] wr_fifo_data_i,
   input  logic [ DATA_COUNT_WIDTH-1:0] wr_data_count_i,
