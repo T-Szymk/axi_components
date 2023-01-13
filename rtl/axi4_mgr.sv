@@ -16,16 +16,21 @@
 --              No protection against reading across 4kB boundaries is provided.
 --              Does not support narrow bursts.
 --              Designed to read from and write to separate FIFOs.
+--
 -- Guidance:    Set address and data_count and then set the corresponding req 
 --              bit. For a write, the wr_valid/rdy will be used to read in new 
 --              data to be written in each beat. For a read, the rd_valid/rdy 
---              signals to write out the read results. Once the data_count
---              number of transactions have completed, the corresponding rsp bit
---              will be set.
+--              signals to write out the read results. 
+--
+--              Upon Initiation of a read/write, the corresponding busy bit is 
+--              set and once the data_count number of transactions have 
+--              completed, the corresponding busy will be cleared.
+--
 --              If an error response is encountered, the rd/wr_err bits will be 
 --              set to indicate the latest not OK error value. This value will 
 --              be cleared when initiating a new set of transactions (setting 
 --              req).
+--
 --              Only Incrementing bursts are supported right now, so for each 
 --              transaction/beat, the address will be incremented by 4, starting
 --              from the address value which is present in the first cycle of 
@@ -34,6 +39,7 @@
 -- Revisions:
 -- Date        Version  Author  Description
 -- 2022-12-30  1.0      TZS     Created
+-- 2023-01-13  1.1      TZS     Replaced response with busy indication
 *******************************************************************************/
 
 module axi4_mgr # (
@@ -55,7 +61,7 @@ module axi4_mgr # (
   input  logic [  AXI4_DATA_WIDTH-1:0] wr_fifo_data_i,
   input  logic [ DATA_COUNT_WIDTH-1:0] wr_data_count_i,
   input  logic [ DATA_COUNT_WIDTH-1:0] rd_data_count_i,
-  output logic [                2-1:0] rsp_o,    // bit 1: rd, bit 0: wr
+  output logic [                2-1:0] busy_o,   // bit 1: rd, bit 0: wr        
   output logic [                2-1:0] wr_err_o, // bresp
   output logic [                2-1:0] rd_err_o, // rresp
   output logic                         wr_fifo_req_o,
@@ -88,7 +94,7 @@ module axi4_mgr # (
   wr_state_t wr_c_state_r;
   rd_state_t rd_c_state_r;
 
-  logic rsp_wr_r, rsp_rd_r;
+  logic busy_wr_r, busy_rd_r;
   logic req_wr_s, req_rd_s, req_wr_r, req_rd_r;
 
   logic aw_valid_r, w_valid_r;
@@ -126,7 +132,7 @@ module axi4_mgr # (
   assign axi_mgr_if.ar_valid  = ar_valid_r;
   assign axi_mgr_if.ar_id     = '0;
   assign axi_mgr_if.ar_len    = axi_arlen_r;
-  assign axi_mgr_if.ar_size   = $clog2(AXI_XSIZE);
+  assign axi_mgr_if.ar_size   = $clog2( AXI_XSIZE );
   assign axi_mgr_if.ar_burst  = 2'b01; // INCR
   assign axi_mgr_if.ar_lock   = '0;
   assign axi_mgr_if.ar_cache  = '0;
@@ -145,8 +151,8 @@ module axi4_mgr # (
 
   // Other signals
   assign r_ready_s      = rd_fifo_req_i; // r_ready determined by rd_fifo_full
-  assign rd_fifo_data_o = (r_ready_s && axi_mgr_if.r_valid) ? axi_mgr_if.r_data : '0;
-  assign rsp_o          = {rsp_rd_r, rsp_wr_r};
+  assign rd_fifo_data_o = ( r_ready_s && axi_mgr_if.r_valid ) ? axi_mgr_if.r_data : '0;
+  assign busy_o         = { busy_rd_r, busy_wr_r };
   assign req_wr_s       = req_i[0];
   assign req_rd_s       = req_i[1];
   assign wr_err_o       = wr_err_r;
@@ -170,7 +176,7 @@ module axi4_mgr # (
       wr_beat_count_r    <= '0;
       wr_trans_len_r     <= '0;
       wr_beats_remain_r  <= '0;
-      rsp_wr_r           <= '0;
+      busy_wr_r          <= '0;
       wr_c_state_r       <= W_IDLE;
 
     end else begin
@@ -179,10 +185,9 @@ module axi4_mgr # (
 
         W_IDLE: begin
 
-          rsp_wr_r <= 1'b0;
-
           if (req_wr_s == 1'b1 && wr_data_count_i != '0 && wr_beats_remain_r == '0) begin
             
+            busy_wr_r     <= 1'b1;
             axi_aw_addr_r <= axi_wr_addr_i;
             wr_c_state_r  <= AW_INIT;
 
@@ -296,7 +301,7 @@ module axi4_mgr # (
             // return to IDLE. Else, create new transaction
             if ( wr_beat_count_r == '0 ) begin
               
-              rsp_wr_r       <= ( wr_beats_remain_r == '0 ) ? 1'b1 : 1'b0;
+              busy_wr_r      <= ( wr_beats_remain_r == '0 ) ? 1'b0 : 1'b1;
               wr_c_state_r   <= W_IDLE;
 
             end else begin
@@ -330,19 +335,18 @@ module axi4_mgr # (
       rd_beat_count_r    <= '0;
       rd_trans_len_r     <= '0;
       rd_beats_remain_r  <= '0;
-      rsp_rd_r           <= '0;
+      busy_rd_r          <= '0;
       rd_c_state_r       <= R_IDLE;
 
     end else begin
 
       case (rd_c_state_r)
 
-        R_IDLE: begin
-
-          rsp_rd_r <= 1'b0;
+        R_IDLE: begin          
 
           if (req_rd_s == 1'b1 && rd_data_count_i != '0 && rd_beats_remain_r == '0) begin
-
+            
+            busy_rd_r       <= 1'b1;
             axi_ar_addr_r   <= axi_rd_addr_i;
             rd_c_state_r    <= AR_INIT;
             
@@ -433,7 +437,7 @@ module axi4_mgr # (
             // return to IDLE. Else, create new transaction
             if ( rd_beat_count_r == 1 ) begin
 
-              rsp_rd_r       <= ( rd_beats_remain_r == '0 ) ? 1'b1 : 1'b0;
+              busy_rd_r      <= ( rd_beats_remain_r == '0 ) ? 1'b0 : 1'b1;
               rd_c_state_r   <= R_IDLE;
 
             end else begin
