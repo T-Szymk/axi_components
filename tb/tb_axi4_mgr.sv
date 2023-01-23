@@ -41,7 +41,7 @@ module tb_axi4_mgr #(
   logic       wr_fifo_empty_s, rd_fifo_empty_s;  
 
   logic [1:0] req_s;
-  logic [1:0] rsp_s;
+  logic [1:0] bsy_s;
 
   logic [DataCountWidth-1:0] wr_data_count_s;
   logic [DataCountWidth-1:0] rd_data_count_s;
@@ -199,7 +199,7 @@ module tb_axi4_mgr #(
     .wr_fifo_data_i  ( axi_wr_data_s    ),           
     .wr_data_count_i ( wr_data_count_s  ),                
     .rd_data_count_i ( rd_data_count_s  ),                
-    .rsp_o           ( rsp_s            ),      
+    .busy_o          ( bsy_s            ),      
     .wr_err_o        ( dut_wr_err_s     ),         
     .rd_err_o        ( dut_rd_err_s     ),
     .wr_fifo_req_o   ( wr_fifo_pop_s    ),
@@ -248,7 +248,7 @@ module tb_axi4_mgr #(
   task automatic complete_transfer ( /*****************************************/
     ref logic       clk,
     ref logic [1:0] req,
-    ref logic [1:0] rsp
+    ref logic [1:0] bsy
   );
     
     @(negedge clk);
@@ -257,7 +257,7 @@ module tb_axi4_mgr #(
     @(negedge clk);
     req = 2'b00;
 
-    while(rsp[0] == 1'b0) begin 
+    while(bsy[0] == 1'b1) begin 
       @(negedge clk);
     end
 
@@ -296,7 +296,7 @@ module tb_axi4_mgr #(
         while (fifo_write_count < FIFO_DEPTH) begin
     
           fill_FIFO(clk, wr_fifo_full_s, wr_data_count_s, fifo_write_count, wr_fifo_push_s, dut_data_s);
-          complete_transfer(clk, req_s, rsp_s);
+          complete_transfer(clk, req_s, bsy_s);
       
           fifo_write_count = fifo_write_count + 4;
     
