@@ -42,7 +42,9 @@ module tb_axi4_mgr #(
 
   logic [1:0] req_s;
   logic [1:0] bsy_s;
-
+  
+  logic [DataCountWidth-1:0] wr_fifo_usage_s;
+  logic [DataCountWidth-1:0] rd_fifo_usage_s;
   logic [DataCountWidth-1:0] wr_data_count_s;
   logic [DataCountWidth-1:0] rd_data_count_s;
   logic [             2-1:0] dut_wr_err_s, dut_rd_err_s;
@@ -132,6 +134,11 @@ module tb_axi4_mgr #(
   assign axi_wr_addr_s = 'h5000;
   assign axi_rd_addr_s = 'h6000;
 
+  // note that FIFO usage cannot be used directly due to value overflows
+
+  assign wr_data_count_s = (!wr_fifo_full_s) ? wr_fifo_usage_s : FIFO_DEPTH;
+  assign rd_data_count_s = (!rd_fifo_full_s) ? rd_fifo_usage_s : FIFO_DEPTH;
+
   initial begin
     forever begin
       clk = 1'b0;
@@ -156,7 +163,7 @@ module tb_axi4_mgr #(
     .testmode_i ( '0              ),           
     .full_o     ( wr_fifo_full_s  ),       
     .empty_o    ( wr_fifo_empty_s ),        
-    .usage_o    ( wr_data_count_s ),        
+    .usage_o    ( wr_fifo_usage_s ),        
     .data_i     ( dut_data_s      ),       
     .push_i     ( wr_fifo_push_s  ),       
     .data_o     ( axi_wr_data_s   ),       
@@ -184,8 +191,8 @@ module tb_axi4_mgr #(
   );
 
   axi4_mgr #(
-    .AXI_ADDR_WIDTH   ( AXI_ADDR_WIDTH  ),
-    .AXI_DATA_WIDTH   ( AXI_DATA_WIDTH  ),
+    .AXI4_ADDR_WIDTH  ( AXI_ADDR_WIDTH  ),
+    .AXI4_DATA_WIDTH  ( AXI_DATA_WIDTH  ),
     .AXI_XSIZE        ( AXISize         ),         
     .DATA_COUNT_WIDTH ( DataCountWidth  )           
   ) i_dut (
@@ -274,8 +281,7 @@ module tb_axi4_mgr #(
     rstn            = 1'b0;
     dut_rstn        = 1'b0;
     req_s           = 2'b00;  
-    rd_fifo_pop_s   = 1'b0; 
-    rd_data_count_s = '0; 
+    rd_fifo_pop_s   = 1'b0;
     dut_data_s      = '0;
     wr_fifo_push_s  = '0;
 
